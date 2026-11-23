@@ -444,8 +444,14 @@
   body.lectura-completa .paginas { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
   body.lectura-completa .recorte { flex-shrink: 0; background: #fff; }
   body.lectura-completa .recorte, body.lectura-completa .pagina { touch-action: pan-x pan-y; }
-  /* nada encima de las notas: el ×N y la vuelta ya salen en el reproductor */
-  body.lectura-completa .cuadro .etiqueta, body.lectura-completa .cuadro .num, body.lectura-completa .cuadro .vuelta { display: none !important; }
+  /* nada encima de las notas: el ×N y la vuelta (2/8) van chiquitos arriba del compás, en la esquina derecha */
+  body.lectura-completa .cuadro .num, body.lectura-completa .cuadro .etiqueta:is(.izq, .der, .ruta, .casilla) { display: none !important; }
+  body.lectura-completa .cuadro .etiqueta, body.lectura-completa .cuadro .vuelta {
+    top: 0; bottom: auto; left: auto; right: 0; transform: translateY(calc(-100% - 1px));
+    font: 600 10px/1 'IBM Plex Mono', monospace; padding: 1px 3px; border-radius: 3px; pointer-events: none; }
+  body.lectura-completa .cuadro .etiqueta { color: var(--ember); background: rgba(255,255,255,0.85); opacity: 0.85; }
+  body.lectura-completa .cuadro .vuelta { color: #fff; background: var(--ember); font-size: 11px; }
+  body.lectura-completa .cuadro.actual:has(.vuelta:not(:empty)) .etiqueta { display: none; }
   body.lectura-completa .cuadro.actual { background: color-mix(in srgb, var(--ember) 6%, transparent); outline-width: 2px; }
   body.lectura-completa .cuadro:hover { background: none; }
   .mini { position: fixed; z-index: 20; left: 0; top: 0; width: 236px; touch-action: none; user-select: none; -webkit-user-select: none;
