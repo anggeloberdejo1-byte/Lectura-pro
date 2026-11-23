@@ -2276,7 +2276,7 @@ addEventListener("resize", () => { if (enCompleta) acomodarMini(); });
     if (e.target.closest("button")) return;
     const r = m.getBoundingClientRect();
     ini = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY, movio: false };
-    asa.setPointerCapture(e.pointerId);
+    try { asa.setPointerCapture(e.pointerId); } catch (_) {}
     m.classList.add("arrastrando");
   });
   asa.addEventListener("pointermove", (e) => {
