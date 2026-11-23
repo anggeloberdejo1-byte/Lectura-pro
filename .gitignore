@@ -1,0 +1,10 @@
+# Piezas de trabajo (el index.html se arma con armar.py) y partituras/canciones de prueba
+pruebas/
+app.js
+motor.js
+temas.js
+cuerpo.html
+estilo-base.css
+estilo-propio.css
+armar.py
+.DS_Store

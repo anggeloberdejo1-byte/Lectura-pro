@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Lectura Pro — La partitura sigue a la canción</title>
+<meta name="description" content="Sube el PDF de la partitura y el audio de la canción: el compás que suena se marca solo, con repeticiones, ×N, casillas y D.S. al coda. By Anggelo Berdejo.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lectura Pro">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f7f0e2">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" href="./icon-192.png">
+<link rel="manifest" href="./manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+
+  /* Paleta "Cálido" por defecto. aplicarTema() reemplaza estas variables. */
+  :root {
+    --ink: #241c15;
+    --bg: #f7f0e2;
+    --surface: #fffbf2;
+    --surface-2: #eedfc3;
+    --parchment: #34291e;
+    --parchment-dim: #7a6c58;
+    --brass: #4f8064;
+    --ember: #b14e37;
+    --verdigris: #b8871f;
+    --rust: #93583a;
+    --focus: #c99a2e;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--parchment);
+    font-family: 'Work Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse at 20% -10%, color-mix(in srgb, var(--brass) 10%, transparent), transparent 55%),
+      repeating-linear-gradient(100deg, rgba(0,0,0,0.02) 0px, rgba(0,0,0,0.02) 2px, transparent 2px, transparent 5px),
+      var(--bg);
+  }
+
+  .tool { max-width: 1000px; margin: 0 auto; padding: 28px 20px 40px; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+
+  /* ---- Encabezado ---- */
+
+  header { margin-bottom: 18px; }
+  .top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--brass);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 44px;
+    letter-spacing: 0.03em;
+    margin: 0 0 4px;
+    line-height: 0.95;
+    font-weight: 400;
+  }
+
+  .subtitle { font-size: 14px; color: var(--parchment-dim); margin: 0; max-width: 46ch; }
+
+  .engrane {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--surface-2);
+    background: var(--surface);
+    color: var(--parchment);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .engrane:hover { color: var(--brass); }
+  .engrane svg { width: 22px; height: 22px; }
+
+  /* ---- Piezas comunes ---- */
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--surface-2);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  button { font-family: inherit; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin: 4px 0 14px;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .tab {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--parchment-dim);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 10px 4px 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .tab.active { color: var(--brass); border-bottom-color: var(--brass); }
+
+  .tempo-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .tempo-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: var(--parchment-dim); text-transform: uppercase; }
+  .tempo-value { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; color: var(--brass); white-space: nowrap; }
+  .tempo-value .unit { font-size: 13px; color: var(--parchment-dim); margin-left: 4px; }
+
+  .tempo-slider-row { display: flex; align-items: center; gap: 10px; }
+  .tempo-slider-row input[type="range"] { flex: 1; }
+  .tempo-step {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-2);
+    color: var(--parchment);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    font-weight: 600;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .tempo-step:hover { background: var(--surface); }
+  .tempo-step:active { background: var(--brass); color: var(--ink); border-color: var(--brass); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-2);
+    outline: none;
+    margin: 12px 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--brass);
+    border: 2px solid var(--ink);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--brass);
+    border: 2px solid var(--ink);
+    cursor: pointer;
+  }
+
+  .transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    background: var(--brass);
+    color: var(--ink);
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 15px;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+  .transport:active { transform: scale(0.98); }
+  .transport.playing { background: var(--ember); color: var(--surface); }
+  .transport:disabled { opacity: 0.5; cursor: default; }
+
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--surface-2);
+    color: var(--parchment-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+  .chip:hover { color: var(--parchment); border-color: var(--parchment-dim); }
+  .chip.active { background: var(--brass); border-color: var(--brass); color: var(--ink); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+  .boton {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-2);
+    color: var(--parchment);
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .boton:hover { background: var(--surface); }
+  .boton.principal { background: var(--brass); border-color: var(--brass); color: var(--ink); }
+
+  .switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--surface-2);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .switch small { display: block; color: var(--parchment-dim); font-size: 12px; margin-top: 2px; }
+  .switch input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 44px;
+    height: 26px;
+    border-radius: 13px;
+    background: var(--surface-2);
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin: 0;
+    transition: background 0.15s ease;
+  }
+  .switch input::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    transition: transform 0.15s ease;
+  }
+  .switch input:checked { background: var(--brass); }
+  .switch input:checked::after { transform: translateX(18px); }
+
+  .nota { font-size: 12.5px; color: var(--parchment-dim); margin: 8px 0 0; line-height: 1.45; }
+
+  /* ---- Ajustes ---- */
+
+  .ajustes {
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(100vh - 40px);
+    border: 1px solid var(--surface-2);
+    border-radius: 14px;
+    padding: 0;
+    background: var(--surface);
+    color: var(--parchment);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  }
+  .ajustes::backdrop { background: rgba(20,16,12,0.45); }
+  .ajustes-cabeza {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--surface-2);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+  }
+  .ajustes-cabeza h2 { font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 28px; letter-spacing: 0.04em; margin: 0; }
+  .ajustes-cuerpo { padding: 16px 18px 20px; }
+  .settings-section + .settings-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--surface-2); }
+  .settings-section-title { font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--parchment-dim); margin: 0 0 10px; }
+
+  .seg { display: flex; gap: 6px; }
+  .seg button {
+    flex: 1;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 9px 8px;
+    border: 1px solid var(--surface-2);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--parchment-dim);
+    cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: var(--ink); }
+
+  .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .theme-card { border: 2px solid var(--surface-2); border-radius: 10px; padding: 10px 6px; cursor: pointer; background: var(--bg); text-align: center; font: inherit; color: inherit; }
+  .theme-card.active { border-color: var(--brass); }
+  .theme-card-swatches { display: flex; gap: 4px; justify-content: center; margin-bottom: 6px; }
+  .theme-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.12); }
+  .theme-card-name { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--parchment); }
+
+  /* ---- Pie: sello, crédito y apoyo ---- */
+
+  .paypal-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin: 22px auto 10px; padding: 10px 16px; max-width: 320px;
+    border-radius: 999px; border: 1px solid var(--brass);
+    color: var(--brass); background: transparent; text-decoration: none;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .paypal-btn:hover { background: var(--surface-2); }
+  .credit-badge { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; }
+  .credit-badge-img { width: 40px; height: auto; opacity: 0.85; }
+  .credit { text-align: center; font-size: 11px; color: var(--parchment-dim); opacity: 0.75; margin: 0; }
+  .credit a { color: var(--brass); }
+
+  .aviso {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-50%) translateY(20px);
+    background: var(--parchment);
+    color: var(--surface);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    max-width: calc(100vw - 32px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 10;
+  }
+  .aviso.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 520px) {
+    .tool { padding: 20px 14px 32px; }
+    h1 { font-size: 38px; }
+    .panel { padding: 14px; }
+    .tab { font-size: 12.5px; padding: 10px 2px 12px; }
+    .theme-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  /* ---- Lectura Pro ---- */
+  .marca-app, .marca { display: flex; gap: 12px; align-items: flex-start; }
+  label.marca { align-items: center; gap: 6px; cursor: pointer; font-size: 14px; }
+  label.marca input { accent-color: var(--brass); width: 18px; height: 18px; margin: 0; }
+  .brand-badge { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; }
+  .titulo { font-family: 'Bebas Neue', sans-serif; font-weight: 400; font-size: 30px; letter-spacing: 0.03em; margin: 0 0 6px; line-height: 1; }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .fila.centrada { align-items: center; }
+  .crece { flex: 1; }
+  .caja { flex: 1; min-width: 180px; font: inherit; font-size: 15px; color: var(--parchment); background: var(--bg); border: 1px solid var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+  .archivo { display: inline-flex; align-items: center; }
+  .boton.chico { padding: 6px 10px; }
+  .boton:disabled { opacity: 0.5; cursor: default; }
+  select { font: inherit; font-size: 13.5px; color: var(--parchment); background: var(--surface-2); border: 1px solid var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+  .enlace { border: 0; background: none; color: var(--brass); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; }
+  .alerta { color: var(--ember); }
+  #seguir { margin: 6px 0 4px; }
+
+  .lista { list-style: none; padding: 0; margin: 12px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .lista li { display: flex; gap: 6px; }
+  .lista .item { flex: 1; display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--bg); border: 1px solid var(--surface-2); color: var(--parchment); border-radius: 8px; padding: 10px 12px; cursor: pointer; font: inherit; font-weight: 600; overflow-wrap: anywhere; }
+  .lista .item:hover { border-color: var(--brass); }
+  .lista .item small { font-weight: 400; font-size: 12px; color: var(--parchment-dim); }
+
+  .cabeza { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .cabeza .titulo { margin: 0; }
+  .datos { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--parchment-dim); }
+  .cancion { margin-top: 12px; padding: 12px; border-radius: 10px; background: color-mix(in srgb, var(--brass) 8%, transparent); }
+
+  .progreso { position: sticky; top: 0; z-index: 6; margin-bottom: 12px; padding: 12px 14px; border-radius: 10px; background: var(--brass); color: var(--ink); font-weight: 600; }
+
+  .reproductor { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+    background: var(--surface); border: 1px solid var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+  .reproductor .transport.play { width: auto; min-width: 64px; padding: 10px 18px; font-size: 18px; }
+  .ahora { min-width: 170px; font-family: 'IBM Plex Mono', monospace; font-size: 14px; }
+  .ahora b { color: var(--brass); font-size: 18px; }
+  .posicion { flex: 1; min-width: 140px; margin: 6px 0 !important; }
+  .tiempo { font-family: 'IBM Plex Mono', monospace; color: var(--parchment-dim); }
+  details.panel summary { cursor: pointer; font-weight: 600; }
+  .edicion { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--brass) 8%, transparent); font-size: 14px; }
+  .edicion .numero { width: 62px; font: inherit; padding: 4px 6px; color: var(--parchment); background: var(--bg); border: 1px solid var(--surface-2); border-radius: 6px; }
+  .edicion .ruta { display: inline-flex; flex-wrap: wrap; gap: 6px 12px; padding-left: 10px; border-left: 2px solid var(--surface-2); }
+
+  /* páginas: el papel queda blanco en todas las paletas (es la partitura) */
+  .paginas { display: flex; flex-direction: column; gap: 14px; }
+  .pagina { position: relative; width: 100%; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--surface-2); touch-action: pan-y; }
+  .pagina img { display: block; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; }
+  .paginas.editando .pagina { cursor: crosshair; touch-action: none; }
+  .cuadro { position: absolute; border-radius: 4px; cursor: pointer; }
+  .cuadro:hover { background: color-mix(in srgb, var(--brass) 8%, transparent); }
+  .cuadro .num { display: none; position: absolute; top: 2px; left: 3px; font: 600 11px/1 'IBM Plex Mono', monospace; color: var(--brass); background: rgba(255,255,255,0.88); padding: 1px 3px; border-radius: 3px; }
+  .cuadro.actual .num, .paginas.editando .cuadro .num { display: block; }
+  .cuadro.actual { background: color-mix(in srgb, var(--ember) 9%, transparent); outline: 3px solid var(--ember); }
+  .cuadro.salto { outline: 2px dashed var(--brass); }
+  .paginas.editando .cuadro { outline: 1.5px solid color-mix(in srgb, var(--brass) 60%, transparent); }
+  .paginas.editando .cuadro.sel { outline: 3px solid var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+  .cuadro.dibujo { outline: 2px dashed var(--brass); background: color-mix(in srgb, var(--brass) 10%, transparent); pointer-events: none; }
+  .etiqueta { position: absolute; top: 1px; right: 2px; font: 600 10px/1 'IBM Plex Mono', monospace; color: #fff; background: color-mix(in srgb, var(--ember) 85%, transparent); padding: 2px 4px; border-radius: 4px; }
+  .etiqueta.izq { right: auto; left: 22px; background: var(--brass); color: var(--ink); }
+  .etiqueta.der, .etiqueta.ruta { top: auto; bottom: 2px; background: var(--brass); color: var(--ink); }
+  .etiqueta.casilla { top: auto; bottom: 2px; right: auto; left: 3px; background: var(--parchment-dim); }
+  .cuadro .vuelta { display: none; position: absolute; bottom: 6px; right: 4px; font: 600 18px/1 'IBM Plex Mono', monospace; color: var(--ember); background: rgba(255,255,255,0.92); padding: 2px 6px; border-radius: 6px; }
+  .cuadro.actual .vuelta:not(:empty) { display: block; }
+  .cuadro .avance { display: none; position: absolute; left: 0; bottom: 0; height: 4px; width: 0; background: var(--ember); border-radius: 2px; }
+  .cuadro.actual .avance { display: block; }
+  .cuadro .punto { display: none !important; position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 3px rgba(255,255,255,0.9); pointer-events: none; transition: left 0.08s ease; }
+  .cuadro.actual .punto[style*="block"] { display: block !important; }
+
+  @media (max-width: 520px) {
+    .brand-badge { width: 44px; height: 44px; }
+    .ahora { min-width: 0; }
+    .reproductor select { max-width: 110px; }
+  }
+
+</style>
+</head>
+<body>
+<main class="tool">
+
+  <header>
+    <div class="top-row">
+      <div class="marca">
+        <img class="brand-badge" src="./icon-192.png" alt="">
+        <div>
+          <div class="eyebrow" data-i18n="Herramientas para músicos">Herramientas para músicos</div>
+          <h1>Lectura Pro</h1>
+          <p class="subtitle" data-i18n="La partitura sigue a la canción: repeticiones, ×N, casillas y saltos">La partitura sigue a la canción: repeticiones, ×N, casillas y saltos</p>
+        </div>
+      </div>
+      <button class="engrane" id="abrirAjustes" type="button" data-i18n-aria="Ajustes" aria-label="Ajustes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <dialog class="ajustes" id="ajustes">
+    <div class="ajustes-cabeza">
+      <h2 data-i18n="Ajustes">Ajustes</h2>
+      <button class="boton" id="cerrarAjustes" type="button" data-i18n="Cerrar">Cerrar</button>
+    </div>
+    <div class="ajustes-cuerpo">
+      <div class="settings-section">
+        <p class="settings-section-title" data-i18n="Idioma">Idioma</p>
+        <div class="seg" id="idiomas">
+          <button type="button" data-idioma="es" aria-pressed="true">Español</button>
+          <button type="button" data-idioma="en" aria-pressed="false">English</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <p class="settings-section-title" data-i18n="Paleta de colores">Paleta de colores</p>
+        <div class="theme-grid" id="temas"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="progreso" id="progreso" role="status" aria-live="polite" hidden></div>
+
+  <!-- Lista de partituras -->
+  <section class="panel" id="vistaLista">
+    <h2 class="titulo" data-i18n="Tus partituras">Tus partituras</h2>
+    <p class="nota" data-i18n="Sube el PDF de la partitura y el audio de la canción, y dale play: el compás que suena se va marcando y la página baja sola. Lee sola los números de compases (un 9 = nueve vueltas), las repeticiones, las casillas y el D.S. al coda.">Sube el PDF de la partitura y el audio de la canción, y dale play: el compás que suena se va marcando y la página baja sola. Lee sola los números de compases (un 9 = nueve vueltas), las repeticiones, las casillas y el D.S. al coda.</p>
+    <p class="nota" data-i18n="Todo queda guardado en este teléfono o computadora: nada se sube a internet.">Todo queda guardado en este teléfono o computadora: nada se sube a internet.</p>
+    <button class="transport" id="seguir" type="button" hidden></button>
+    <div class="fila">
+      <input class="caja" id="buscar" type="search" data-i18n-ph="Busca por canción o por nombre…" placeholder="Busca por canción o por nombre…">
+      <label class="boton principal archivo"><span data-i18n="Subir PDF">Subir PDF</span>
+        <input id="archivoPDF" type="file" accept="application/pdf,.pdf" hidden></label>
+    </div>
+    <ul class="lista" id="lista"></ul>
+  </section>
+
+  <!-- Lector -->
+  <div id="vistaLector" hidden>
+    <section class="panel">
+      <div class="cabeza">
+        <button class="boton" id="volver" type="button">← <span data-i18n="Partituras">Partituras</span></button>
+        <h2 class="titulo" id="titulo"></h2>
+        <small class="datos" id="datos"></small>
+      </div>
+      <div id="sinCancion" class="cancion">
+        <b data-i18n="Ponle la canción">Ponle la canción</b>
+        <p class="nota" data-i18n="Sube el audio de la canción (mp3, m4a, wav…). La app escucha el pulso y lo alinea con los compases.">Sube el audio de la canción (mp3, m4a, wav…). La app escucha el pulso y lo alinea con los compases.</p>
+        <label class="boton principal archivo"><span data-i18n="Subir audio">Subir audio</span>
+          <input id="archivoAudio" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac" hidden></label>
+      </div>
+      <div id="conCancion" class="fila centrada" hidden>
+        <span class="crece">🎵 <b id="cancionNombre"></b><small class="nota" id="cancionDatos"></small></span>
+        <label class="boton archivo"><span data-i18n="Cambiar canción">Cambiar canción</span>
+          <input id="archivoAudio2" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac" hidden></label>
+      </div>
+    </section>
+
+    <div class="reproductor" id="reproductor" hidden>
+      <button class="transport play" id="play" type="button" data-i18n-aria="Tocar" aria-label="Tocar">▶</button>
+      <button class="boton" id="anterior" type="button" data-i18n-aria="Compás anterior (←)" aria-label="Compás anterior (←)">⏮</button>
+      <button class="boton" id="siguiente" type="button" data-i18n-aria="Compás siguiente (→)" aria-label="Compás siguiente (→)">⏭</button>
+      <span class="ahora" id="ahora"></span>
+      <input type="range" class="posicion" id="posicion" min="0" max="1" step="0.1" value="0" data-i18n-aria="Posición" aria-label="Posición">
+      <small class="tiempo" id="tiempo">0:00.0</small>
+      <select id="velocidad" data-i18n-aria="Velocidad" aria-label="Velocidad">
+        <option value="0.5">50 %</option><option value="0.6">60 %</option><option value="0.7">70 %</option><option value="0.75">75 %</option>
+        <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
+      </select>
+      <label class="marca"><input type="checkbox" id="bajarSola"> <span data-i18n="Bajar la página sola">Bajar la página sola</span></label>
+      <audio id="audio" preload="auto"></audio>
+    </div>
+
+    <details class="panel" id="ajusteGrabacion" hidden>
+      <summary data-i18n="Ajustar a la grabación (dónde empieza, compás, marcar a mano)">Ajustar a la grabación (dónde empieza, compás, marcar a mano)</summary>
+      <div class="fila centrada">
+        <span><span data-i18n="El compás 1 empieza en">El compás 1 empieza en</span> <b id="inicioTxt"></b></span>
+        <button class="boton" id="marcarAqui" type="button" data-i18n="Marcar aquí (M)">Marcar aquí (M)</button>
+        <button class="boton" type="button" data-mover="-1" data-compas="1" data-i18n="◀ compás">◀ compás</button>
+        <button class="boton" type="button" data-mover="-1" data-i18n="◀ pulso">◀ pulso</button>
+        <button class="boton" type="button" data-mover="1" data-i18n="pulso ▶">pulso ▶</button>
+        <button class="boton" type="button" data-mover="1" data-compas="1" data-i18n="compás ▶">compás ▶</button>
+      </div>
+      <div class="fila centrada">
+        <label><span data-i18n="Pulsos por compás">Pulsos por compás</span> <select id="bpb"></select></label>
+        <small class="nota" id="bpbMotivo"></small>
+      </div>
+      <div class="fila centrada">
+        <label class="marca"><input type="checkbox" id="aMano"> <span data-i18n="Marcar a mano">Marcar a mano</span></label>
+        <small class="nota"><span data-i18n="Para grabaciones en vivo o con cambios de tempo: pon play y aprieta T (o el botón) al comienzo de cada compás.">Para grabaciones en vivo o con cambios de tempo: pon play y aprieta T (o el botón) al comienzo de cada compás.</span><span id="marcasTxt"></span></small>
+        <button class="boton principal" id="marcarCompas" type="button" data-i18n="Marcar compás (T)" hidden>Marcar compás (T)</button>
+        <button class="boton" id="borrarMarcas" type="button" data-i18n="Borrar marcas" hidden>Borrar marcas</button>
+      </div>
+    </details>
+
+    <section class="panel">
+      <div class="fila centrada">
+        <b data-i18n="Orden">Orden</b>
+        <input class="caja" id="orden" data-i18n-aria="Orden de los compases" aria-label="Orden de los compases">
+        <button class="boton" id="usarMarcas" type="button" data-i18n="Usar el de las marcas" hidden>Usar el de las marcas</button>
+        <button class="boton" id="editar" type="button">✎ Repeticiones y compases</button>
+      </div>
+      <p class="nota" id="ordenAyuda"></p>
+      <div class="edicion" id="edicion" hidden></div>
+    </section>
+
+    <div class="paginas" id="paginas"></div>
+  </div>
+
+  <a class="paypal-btn" href="https://www.paypal.com/paypalme/anggeloberdejo" target="_blank" rel="noopener noreferrer">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M7.1 21.5H3.6a.5.5 0 0 1-.5-.6L5.9 3.2a.9.9 0 0 1 .9-.7h6.1c3.6 0 5.6 1.8 5.1 5-.6 3.6-3 5.4-6.6 5.4H9.6l-.9 5.6-.3 2.1a.9.9 0 0 1-.9.9zm11.6-14c-.1.5-.2 1-.3 1.4-1 4.6-4.3 6.3-8.3 6.3h-.4l-1.1 6.5h2.9a.8.8 0 0 0 .8-.7l.6-3.8h1.7c3.6 0 6.2-1.6 6.9-5.4.3-1.8 0-3.2-.8-4.3z"/></svg>
+    <span data-i18n="Apoya este proyecto en PayPal">Apoya este proyecto en PayPal</span>
+  </a>
+  <div class="credit-badge">
+    <img class="credit-badge-img" src="./sello.webp" alt="By Anggelo Berdejo">
+    <p class="credit">
+      <span data-i18n="Hecha por Anggelo Berdejo — El Ñañe">Hecha por Anggelo Berdejo — El Ñañe</span> ·
+      <a href="https://instagram.com/anggelo.berdejo">@anggelo.berdejo</a> ·
+      <a href="https://anggeloberdejo1-byte.github.io/apps/" data-i18n="Otras herramientas">Otras herramientas</a>
+    </p>
+  </div>
+</main>
+
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+<script>
+const TEMAS = {
+  calido: { es: 'Cálido', en: 'Warm', vars: { ink: '#241c15', bg: '#f7f0e2', surface: '#fffbf2', 'surface-2': '#eedfc3', parchment: '#34291e', 'parchment-dim': '#7a6c58', brass: '#4f8064', ember: '#b14e37', verdigris: '#b8871f', rust: '#93583a', focus: '#c99a2e' } },
+  dia: { es: 'Día', en: 'Day', vars: { ink: '#1a2331', bg: '#f3f9ff', surface: '#ffffff', 'surface-2': '#e1edf9', parchment: '#1a2331', 'parchment-dim': '#5c7089', brass: '#2f8fd1', ember: '#ef8354', verdigris: '#2bb3a3', rust: '#ef8354', focus: '#2f8fd1' } },
+  noche: { es: 'Noche', en: 'Night', vars: { ink: '#0b1220', bg: '#0b1220', surface: '#101a2c', 'surface-2': '#182640', parchment: '#e8f0fb', 'parchment-dim': '#7791b3', brass: '#4fd8ff', ember: '#7c93ff', verdigris: '#4fd8ff', rust: '#7c93ff', focus: '#7c93ff' } },
+  feliz: { es: 'Feliz', en: 'Happy', vars: { ink: '#3a2b1a', bg: '#fff6e9', surface: '#fffdf7', 'surface-2': '#ffe8c2', parchment: '#3a2b1a', 'parchment-dim': '#9c7d55', brass: '#ff6f59', ember: '#2ec4b6', verdigris: '#2ec4b6', rust: '#ff6f59', focus: '#ffb400' } },
+  serio: { es: 'Serio', en: 'Serious', vars: { ink: '#1b1e22', bg: '#1b1e22', surface: '#24282e', 'surface-2': '#2f343b', parchment: '#e6e8eb', 'parchment-dim': '#8a939e', brass: '#8fa1b3', ember: '#c9a27a', verdigris: '#5c6773', rust: '#9aa5b1', focus: '#9aa5b1' } },
+  grafito: { es: 'Grafito y oro', en: 'Graphite & gold', vars: { ink: '#14161a', bg: '#121417', surface: '#1b1e23', 'surface-2': '#272b31', parchment: '#ece8df', 'parchment-dim': '#8f949b', brass: '#c9a96e', ember: '#d06a52', verdigris: '#7fa38c', rust: '#a8744f', focus: '#e3d3a8' } },
+  vino: { es: 'Vino tinto', en: 'Red wine', vars: { ink: '#1a0f11', bg: '#1a1012', surface: '#251719', 'surface-2': '#362224', parchment: '#f2e7de', 'parchment-dim': '#a8918a', brass: '#c49a5b', ember: '#d0566a', verdigris: '#8a9a6e', rust: '#c2714f', focus: '#e0c9a6' } },
+  pizarra: { es: 'Pizarra', en: 'Slate', vars: { ink: '#f5f7f9', bg: '#eceff2', surface: '#f9fafb', 'surface-2': '#dbe1e7', parchment: '#1f2933', 'parchment-dim': '#5f6b78', brass: '#2f4a63', ember: '#a3503a', verdigris: '#5b7f6b', rust: '#8a6d4b', focus: '#7b8fa6' } },
+  lofi: { es: 'Lo-fi', en: 'Lo-fi', vars: { ink: '#1e1b2e', bg: '#1e1b2e', surface: '#28243b', 'surface-2': '#353050', parchment: '#ece6f5', 'parchment-dim': '#9b93b6', brass: '#a493ff', ember: '#ff9fb2', verdigris: '#7fd1c7', rust: '#ffc48c', focus: '#f5e17a' } },
+  atardecer: { es: 'Atardecer', en: 'Sunset', vars: { ink: '#fffaf6', bg: '#fdf0ea', surface: '#fffaf7', 'surface-2': '#f5dcd1', parchment: '#3d2c33', 'parchment-dim': '#957c83', brass: '#c05e52', ember: '#7f6bb8', verdigris: '#d99a5c', rust: '#b97a92', focus: '#e0b04f' } },
+  oceano: { es: 'Océano', en: 'Ocean', vars: { ink: '#0f2027', bg: '#0f2027', surface: '#16303a', 'surface-2': '#1f404c', parchment: '#e3f2f1', 'parchment-dim': '#86aeb0', brass: '#5cc8b5', ember: '#f2a65a', verdigris: '#8fc9ea', rust: '#e98a8a', focus: '#f3dd7d' } },
+  matcha: { es: 'Matcha', en: 'Matcha', vars: { ink: '#fbfcf8', bg: '#eff3e9', surface: '#fbfcf8', 'surface-2': '#dce5d0', parchment: '#2b3326', 'parchment-dim': '#6d7b62', brass: '#5f8a4e', ember: '#c4775e', verdigris: '#8aa64b', rust: '#9b7650', focus: '#d1a94a' } },
+};
+
+/* =====================================================================
+ * Motor de lectura (el mismo de Lectura Pro para Mac, pasado al navegador).
+ * Una página es { w, h, d } con d[y*w+x] = 1 donde hay tinta.
+ * ===================================================================== */
+
+// ---------------------------------------------------------------- imagen
+/** Dónde hay tinta: lo oscuro, y lo que quedó bajo un resaltador (gris + amarillo = oliva). */
+function tintaDe(img) {
+  const { width: w, height: h, data } = img;
+  const d = new Uint8Array(w * h);
+  for (let i = 0, p = 0; i < d.length; i++, p += 4) {
+    const r = data[p], g = data[p + 1], b = data[p + 2];
+    const luma = (r * 299 + g * 587 + b * 114) / 1000;
+    const hi = Math.max(r, g, b), lo = Math.min(r, g, b);
+    d[i] = luma < 140 || (hi < 185 && hi - lo > 60) ? 1 : 0;
+  }
+  return { w, h, d };
+}
+
+function corridaMasLarga(fila, w) {
+  let mejor = 0, ini = 0, cur = 0;
+  for (let x = 0; x < w; x++) {
+    if (fila[x]) { cur++; if (cur > mejor) { mejor = cur; ini = x - cur + 1; } } else cur = 0;
+  }
+  return [mejor, ini];
+}
+
+/** Recorte (copia) de una región: { w, h, d }. */
+function recorte(pg, x0, y0, x1, y1) {
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(pg.w, x1); y1 = Math.min(pg.h, y1);
+  const w = Math.max(0, x1 - x0), h = Math.max(0, y1 - y0);
+  const d = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) d.set(pg.d.subarray((y0 + y) * pg.w + x0, (y0 + y) * pg.w + x0 + w), y * w);
+  return { w, h, d, x0, y0 };
+}
+
+/** Componentes conectados (4 vecinos, como scipy.ndimage.label). */
+function etiquetar(b) {
+  const { w, h, d } = b;
+  const lab = new Int32Array(w * h);
+  const objs = [];
+  const pila = [];
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (!d[i] || lab[i]) continue;
+    n++;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1, area = 0;
+    lab[i] = n; pila.push(i);
+    while (pila.length) {
+      const k = pila.pop();
+      const x = k % w, y = (k - x) / w;
+      area++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && d[k - 1] && !lab[k - 1]) { lab[k - 1] = n; pila.push(k - 1); }
+      if (x < w - 1 && d[k + 1] && !lab[k + 1]) { lab[k + 1] = n; pila.push(k + 1); }
+      if (y > 0 && d[k - w] && !lab[k - w]) { lab[k - w] = n; pila.push(k - w); }
+      if (y < h - 1 && d[k + w] && !lab[k + w]) { lab[k + w] = n; pila.push(k + w); }
+    }
+    objs.push({ n, x0, y0, x1: x1 + 1, y1: y1 + 1, area });
+  }
+  return { lab, objs };
+}
+
+/** La forma de un componente sola, en su caja: { w, h, d }. */
+function forma(b, lab, o) {
+  const w = o.x1 - o.x0, h = o.y1 - o.y0;
+  const d = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) d[y * w + x] = lab[(o.y0 + y) * b.w + o.x0 + x] === o.n ? 1 : 0;
+  return { w, h, d };
+}
+const media = (f) => { let s = 0; for (let i = 0; i < f.d.length; i++) s += f.d[i]; return f.d.length ? s / f.d.length : 0; };
+
+/** Apertura con un cuadrado k×k (se van las líneas finas: plicas, ligaduras). */
+function abrir(b, k) {
+  const { w, h, d } = b;
+  const I = new Int32Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let fila = 0;
+    for (let x = 0; x < w; x++) { fila += d[y * w + x]; I[(y + 1) * (w + 1) + x + 1] = I[y * (w + 1) + x + 1] + fila; }
+  }
+  const suma = (x0, y0, x1, y1) => I[y1 * (w + 1) + x1] - I[y0 * (w + 1) + x1] - I[y1 * (w + 1) + x0] + I[y0 * (w + 1) + x0];
+  const r0 = Math.floor((k - 1) / 2), r1 = k - 1 - r0;
+  const ero = new Uint8Array(w * h);
+  for (let y = r0; y < h - r1; y++) for (let x = r0; x < w - r1; x++)
+    if (suma(x - r0, y - r0, x + r1 + 1, y + r1 + 1) === k * k) ero[y * w + x] = 1;
+  const J = new Int32Array((w + 1) * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let fila = 0;
+    for (let x = 0; x < w; x++) { fila += ero[y * w + x]; J[(y + 1) * (w + 1) + x + 1] = J[y * (w + 1) + x + 1] + fila; }
+  }
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const xa = Math.max(0, x - r1), ya = Math.max(0, y - r1), xb = Math.min(w, x + r0 + 1), yb = Math.min(h, y + r0 + 1);
+    if (J[yb * (w + 1) + xb] - J[ya * (w + 1) + xb] - J[yb * (w + 1) + xa] + J[ya * (w + 1) + xa] > 0) out[y * w + x] = 1;
+  }
+  return { w, h, d: out };
+}
+
+// ---------------------------------------------------------------- pentagramas
+function pentagramas(pg) {
+  const { w: W, h: H, d } = pg;
+  // la línea puede correrse un píxel (resaltador) y tener huecos cortos: se engrosa y se tapan
+  const gruesa = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    gruesa[i] = d[i] || (y > 0 && d[i - W]) || (y < H - 1 && d[i + W]) ? 1 : 0;
+  }
+  const fila = new Uint8Array(W), dil = new Uint8Array(W), unida = new Uint8Array(W);
+  const lineas = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) fila[x] = gruesa[y * W + x];
+    // cierre horizontal de 7 (dilatar 3 a cada lado y luego erosionar)
+    for (let x = 0; x < W; x++) { let v = 0; for (let k = -3; k <= 3 && !v; k++) { const xx = x + k; if (xx >= 0 && xx < W && fila[xx]) v = 1; } dil[x] = v; }
+    for (let x = 0; x < W; x++) { let v = 1; for (let k = -3; k <= 3 && v; k++) { const xx = x + k; if (xx < 0 || xx >= W || !dil[xx]) v = 0; } unida[x] = v; }
+    const [L, s] = corridaMasLarga(unida, W);
+    if (L < 0.15 * W) continue;
+    let up = 1, dn = 1;
+    if (y >= 4) { up = 0; for (let x = s; x < s + L; x++) up += d[(y - 4) * W + x]; up /= L; }
+    if (y + 4 < H) { dn = 0; for (let x = s; x < s + L; x++) dn += d[(y + 4) * W + x]; dn /= L; }
+    if (up < 0.5 && dn < 0.5) {
+      let propia = 0;
+      for (let x = 0; x < W; x++) propia += d[y * W + x];
+      const ult = lineas[lineas.length - 1];
+      if (ult && y - ult.y <= 2) { if (propia > ult.propia) lineas[lineas.length - 1] = { y, s, e: s + L, propia }; continue; }
+      lineas.push({ y, s, e: s + L, propia });
+    }
+  }
+  const out = [];
+  let i = 0;
+  while (i + 4 < lineas.length) {
+    const g = lineas.slice(i, i + 5);
+    const gaps = [1, 2, 3, 4].map((k) => g[k].y - g[k - 1].y);
+    const xs = g.map((l) => l.s);
+    const mn = Math.min(...gaps), mx = Math.max(...gaps);
+    if (mn >= 4 && mx <= 1.35 * mn && mx < 60 && Math.max(...xs) - Math.min(...xs) < 0.3 * W) {
+      out.push({ top: g[0].y, bot: g[4].y, x0: Math.min(...xs), x1: Math.max(...g.map((l) => l.e)), sp: gaps.reduce((a, b) => a + b) / 4 });
+      i += 5;
+    } else i++;
+  }
+  return out;
+}
+
+function columnasLlenas(pg, top, bot, x0, x1) {
+  const out = [];
+  for (let x = Math.max(0, x0); x < Math.min(pg.w, x1); x++) {
+    let s = 0;
+    for (let y = top; y <= bot; y++) s += pg.d[y * pg.w + x];
+    if (s / (bot - top + 1) >= 0.93) out.push(x);
+  }
+  return out;
+}
+
+function grupos(cols, gap) {
+  const out = [];
+  for (const x of cols) {
+    const g = out[out.length - 1];
+    if (g && x - g[1] <= gap) g[1] = x; else out.push([x, x]);
+  }
+  return out;
+}
+
+function conectados(pg, a, b, sp) {
+  const y0 = a.bot + 2, y1 = b.top - 2;
+  if (y1 <= y0 || y1 - y0 > 12 * sp) return false;
+  const xa = Math.max(0, Math.max(a.x0, b.x0) - Math.floor(sp)), xb = Math.min(a.x1, b.x1) + 1;
+  const xs = [];
+  for (let x = xa; x < xb; x++) {
+    let s = 0;
+    for (let y = y0; y < y1; y++) s += pg.d[y * pg.w + x];
+    if (s / (y1 - y0) >= 0.93) xs.push(x - xa);
+  }
+  if (!xs.length) return false;
+  const gs = grupos(xs, 2);
+  return gs.some((g) => g[0] <= 2 * sp) || gs.length >= 2;
+}
+
+function tienePuntos(pg, st, xa, xb, sp) {
+  const top = Math.round(st.top), bot = Math.round(st.bot);
+  xa = Math.max(0, Math.round(xa)); xb = Math.max(xa + 1, Math.round(xb));
+  const lleno = [];
+  for (let x = xa; x < xb; x++) { let s = 0; for (let y = top; y <= bot; y++) s += pg.d[y * pg.w + x]; lleno.push(s / (bot - top + 1) > 0.85); }
+  const r = Math.max(1, Math.floor(sp * 0.2));
+  const y1 = Math.round(top + 1.5 * sp), y2 = Math.round(top + 2.5 * sp), ym = Math.round(top + 2 * sp);
+  const col = (x, ya, yb) => { let s = 0, n = 0; for (let y = ya; y < yb; y++) { s += pg.d[y * pg.w + x]; n++; } return n ? s / n : 0; };
+  for (let x = xa; x < xb; x++) {
+    if (lleno[x - xa]) continue;
+    const c1 = col(x, y1 - r, y1 + r + 1) > 0.55, c2 = col(x, y2 - r, y2 + r + 1) > 0.55;
+    if (!(c1 && c2)) continue;
+    const gap = col(x, ym - r - 1, ym - 1) + col(x, ym + 2, ym + r + 2);
+    if (gap < 0.6) return true;
+  }
+  return false;
+}
+
+function esPlica(pg, l, grp, sp, mascara) {
+  const w = Math.max(3, Math.floor(0.6 * sp)), h = Math.max(3, Math.floor(1.0 * sp));
+  const lados = [[Math.max(0, l[0] - 1 - w), l[0] - 1], [l[1] + 2, Math.min(pg.w, l[1] + 2 + w)]];
+  for (const [a, b] of lados) {
+    if (b - a < 2) continue;
+    for (const s of grp) {
+      const ys = [];
+      const paso = Math.max(1, Math.floor(h / 3));
+      for (let y = Math.floor(s.top - 0.5 * sp); y <= Math.floor(s.top + 0.6 * sp) - h; y += paso) ys.push(y);
+      for (let y = Math.floor(s.bot - 0.6 * sp); y <= Math.floor(s.bot + 0.5 * sp) - h; y += paso) ys.push(y);
+      for (const y of ys) {
+        let t = 0, n = 0;
+        for (let yy = Math.max(0, y); yy < y + h; yy++) for (let x = a; x < b; x++) { if (!mascara[x]) t += pg.d[yy * pg.w + x]; n++; }
+        if (n && t / n > 0.6) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function sistemas(pg) {
+  const st = pentagramas(pg);
+  if (!st.length) return [];
+  const sps = st.map((s) => s.sp).sort((a, b) => a - b);
+  const sp = sps[Math.floor(sps.length / 2)];
+  const grps = [];
+  let cur = [st[0]];
+  for (const s of st.slice(1)) { if (conectados(pg, cur[cur.length - 1], s, sp)) cur.push(s); else { grps.push(cur); cur = [s]; } }
+  grps.push(cur);
+  const H = pg.h;
+  const out = [];
+  for (const grp of grps) {
+    const x0 = Math.min(...grp.map((s) => s.x0)), x1 = Math.max(...grp.map((s) => s.x1));
+    const top = grp[0].top, bot = grp[grp.length - 1].bot;
+    const spg = grp.map((s) => s.sp).sort((a, b) => a - b)[Math.floor(grp.length / 2)];
+    let ok = null;
+    for (const s of grp) {
+      const m = new Uint8Array(pg.w);
+      for (const x of columnasLlenas(pg, s.top, s.bot, s.x0, s.x1 + 1)) m[x] = 1;
+      if (grp.length > 1) { const c = m.slice(); for (let x = 0; x < pg.w; x++) m[x] = c[x] || c[(x + 1) % pg.w] || c[(x - 1 + pg.w) % pg.w]; }
+      ok = ok ? ok.map((v, x) => v & m[x]) : m;
+    }
+    const lim = 0.45 * spg;
+    const corre = (x, y, paso) => { let n = 0; while (y >= 0 && y < H && pg.d[y * pg.w + x] && n <= lim) { n++; y += paso; } return n; };
+    const bordeRecuadro = (x, y, paso) => {
+      for (let k = 0; k < Math.floor(1.2 * spg); k++, y += paso) {
+        if (y < 0 || y >= H || !pg.d[y * pg.w + x]) return false;
+        let a = x, b = x;
+        while (a > 0 && pg.d[y * pg.w + a - 1] && x - a < 3 * spg) a--;
+        while (b < pg.w - 1 && pg.d[y * pg.w + b + 1] && b - x < 3 * spg) b++;
+        if (b - a >= 2.5 * spg) return true;
+      }
+      return false;
+    };
+    const cols = [];
+    for (let x = 0; x < pg.w; x++) if (ok[x]) cols.push(x);
+    let lineas = [];
+    for (const l of grupos(cols, 1)) {
+      let up = Infinity, dn = Infinity;
+      for (let x = l[0]; x <= l[1]; x++) { up = Math.min(up, corre(x, top - 1, -1)); dn = Math.min(dn, corre(x, bot + 1, 1)); }
+      const upOk = up <= lim || bordeRecuadro(l[0], top - 1, -1);
+      const dnOk = dn <= lim || bordeRecuadro(l[0], bot + 1, 1);
+      if (upOk && dnOk) lineas.push(l);
+    }
+    lineas = lineas.filter((l) => l[1] - l[0] < 1.1 * spg);
+    const anchos = lineas.map((l) => l[1] - l[0] + 1).sort((a, b) => a - b);
+    const delgada = anchos.length ? (anchos.length % 2 ? anchos[(anchos.length - 1) / 2] : (anchos[anchos.length / 2 - 1] + anchos[anchos.length / 2]) / 2) : 2;
+    const gruesaW = Math.max(0.4 * spg, 1.8 * delgada);
+    const esGruesa = (l) => l[1] - l[0] + 1 >= gruesaW;
+    const mascara = new Uint8Array(pg.w);
+    for (const l of lineas) for (let x = Math.max(0, l[0] - 1); x < Math.min(pg.w, l[1] + 2); x++) mascara[x] = 1;
+    lineas = lineas.filter((l) => esGruesa(l) || !esPlica(pg, l, grp, spg, mascara));
+    let barras = [];
+    for (const l of lineas) {
+      const b = barras[barras.length - 1];
+      if (b && l[0] - b.x1 <= 1.2 * spg) { b.x1 = l[1]; b.n++; b.gruesa = b.gruesa || esGruesa(l); }
+      else barras.push({ x0: l[0], x1: l[1], n: 1, gruesa: esGruesa(l) });
+    }
+    for (const b of barras) {
+      b.finRep = b.iniRep = false;
+      if (b.gruesa) {
+        b.finRep = tienePuntos(pg, grp[0], b.x0 - 1.3 * spg, b.x0 - 1, spg);
+        b.iniRep = tienePuntos(pg, grp[0], b.x1 + 2, b.x1 + 1.3 * spg, spg);
+      }
+    }
+    // la cifra de compás (4/4) tiene un trazo que cruza el pentagrama
+    while (barras.length && !barras[0].gruesa && barras[0].n === 1 && barras[0].x0 - x0 < 10 * spg && barras[0].x0 - x0 > 1.5 * spg) barras = barras.slice(1);
+    if (barras.length > 1 && barras[0].gruesa && !barras[1].gruesa && barras[1].n === 1 && barras[1].x0 - barras[0].x1 < 3 * spg && barras[0].x0 - x0 < 10 * spg)
+      barras = [barras[0], ...barras.slice(2)];
+    // la línea del comienzo del sistema no es un compás
+    if (barras.length && barras[0].x0 - x0 <= 1.5 * spg && !barras[0].iniRep) barras = barras.slice(1);
+    else if (barras.length && barras[0].x0 - x0 <= 1.5 * spg) barras[0].saltar = true;
+    out.push({ top, bot, x0, x1, sp: spg, barras, grp });
+  }
+  return out;
+}
+
+/** Compases de una página en orden de lectura. */
+function compasesDePagina(pg, pagina) {
+  const out = [];
+  for (const sy of sistemas(pg)) {
+    const sp = sy.sp;
+    const y0 = Math.max(0, Math.floor(sy.top - 2.5 * sp)), y1 = Math.min(pg.h, Math.floor(sy.bot + 2.5 * sp));
+    let izq = sy.x0, iniRep = false, barras = sy.barras;
+    if (barras.length && (barras[0].n >= 2 || barras[0].gruesa) && !barras[0].saltar && barras[0].x0 - izq < 10 * sp) {
+      izq = barras[0].x1 + 1;
+      iniRep = barras[0].iniRep || barras[0].gruesa;
+      barras = barras.slice(1);
+    }
+    for (const b of barras) {
+      if (b.saltar) { iniRep = true; izq = b.x1 + 1; continue; }
+      if (b.x0 - izq > 1.5 * sp) out.push({ page: pagina, box: [Math.round(izq), y0, Math.round(b.x0), y1], rep_start: iniRep, rep_end: b.finRep });
+      else if (out.length && b.finRep) out[out.length - 1].rep_end = true;
+      iniRep = b.iniRep;
+      izq = b.x1 + 1;
+    }
+    if (sy.x1 - izq > 4.5 * sp) out.push({ page: pagina, box: [Math.round(izq), y0, Math.round(sy.x1), y1], rep_start: iniRep, rep_end: false });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- números, signos y notas
+function pentagramaDe(st, box) {
+  const cy = (box[1] + box[3]) / 2;
+  return st.reduce((a, s) => (Math.abs((s.top + s.bot) / 2 - cy) < Math.abs((a.top + a.bot) / 2 - cy) ? s : a));
+}
+
+/** Recorte sin las líneas del pentagrama (sin cortar los símbolos que las cruzan). */
+function sinLineas(pg, s, ya, yb, xa, xb) {
+  const r = recorte(pg, xa, ya, xb, yb);
+  for (let k = 0; k < 5; k++) {
+    const y = Math.round(s.top + k * s.sp) - r.y0;
+    for (const yy of [y - 1, y, y + 1]) {
+      if (yy < 2 || yy >= r.h - 2) continue;
+      for (let x = 0; x < r.w; x++) r.d[yy * r.w + x] &= r.d[(yy - 2) * r.w + x] | r.d[(yy + 2) * r.w + x];
+    }
+  }
+  return r;
+}
+
+function inclinacion(f) {
+  const q = Math.max(1, Math.floor(f.h / 4));
+  const cx = (ya, yb) => { let s = 0, t = 0; for (let y = ya; y < yb; y++) for (let x = 0; x < f.w; x++) if (f.d[y * f.w + x]) { s += x; t++; } return t ? s / t / f.w : 0; };
+  return cx(0, q) - cx(f.h - q, f.h);
+}
+
+/** Números grandes del compás (×N): el 9 sobre un silencio, el 7 entre barras de ritmo. */
+function partesDeNumero(pg, st, box) {
+  const s = pentagramaDe(st, box), sp = s.sp;
+  const ya = Math.max(0, Math.floor(s.top - 5.5 * sp)), yb = Math.min(pg.h, Math.floor(s.bot + sp));
+  const xa = box[0] + 3, xb = box[2] - 3;
+  if (xb - xa < 4 || yb - ya < 4) return null;
+  const sub = sinLineas(pg, s, ya, yb, xa, xb);
+  const mid = Math.round((s.top + s.bot) / 2) - ya;
+  let multi = false;
+  {
+    const r0 = Math.max(0, mid - Math.floor(0.3 * sp)), r1 = mid + Math.floor(0.3 * sp) + 1;
+    const todas = new Uint8Array(sub.w);
+    for (let x = 0; x < sub.w; x++) { let v = 1; for (let y = r0; y < r1; y++) if (!sub.d[y * sub.w + x]) { v = 0; break; } todas[x] = v; }
+    multi = corridaMasLarga(todas, sub.w)[0] >= 0.5 * (xb - xa);
+  }
+  const { lab, objs } = etiquetar(sub);
+  const dentro = new Uint8Array(sub.w * sub.h), arriba = new Uint8Array(sub.w * sub.h);
+  let barritas = 0;
+  for (const o of objs) {
+    const f = forma(sub, lab, o);
+    const h = f.h, w = f.w;
+    let filaAncha = false;
+    for (let y = 0; y < h && !filaAncha; y++) { let c = 0; for (let x = 0; x < w; x++) c += f.d[y * w + x]; if (c > 0.6 * w) filaAncha = true; }
+    if (h >= 1.8 * sp && h <= 3 * sp && w >= 1.2 * sp && w <= 2.6 * sp && !filaAncha) {
+      const q = Math.max(1, Math.floor(h / 4));
+      const cx = (a, b) => { let s1 = 0, t = 0; for (let y = a; y < b; y++) for (let x = 0; x < w; x++) if (f.d[y * w + x]) { s1 += x; t++; } return t ? s1 / t : 0; };
+      if (cx(0, q) - cx(h - q, h) > 0.5 * w) { barritas++; continue; }
+    }
+    if (!(h >= 3.0 * sp && h <= 4.6 * sp && w <= 2.8 * sp && media(f) >= 0.3)) continue;
+    if (Math.abs(inclinacion(f)) > 0.33) continue;
+    const topC = ya + o.y0, botC = ya + o.y1;
+    if (xa + o.x0 < s.x0 + 10 * sp && Math.abs(topC - s.top) < 0.6 * sp && Math.abs(botC - s.bot) < 0.6 * sp) continue;
+    const enPent = topC >= s.top - 0.6 * sp && botC <= s.bot + 0.6 * sp;
+    const encima = botC <= s.top + 0.3 * sp;
+    if (!(enPent || encima)) continue;
+    const destino = encima ? arriba : dentro;
+    if (encima) {
+      const cxm = xa + (o.x0 + o.x1) / 2;
+      if (Math.abs(cxm - (xa + xb) / 2) > 0.3 * (xb - xa)) continue;
+    }
+    for (let y = o.y0; y < o.y1; y++) for (let x = o.x0; x < o.x1; x++) if (lab[y * sub.w + x] === o.n) destino[y * sub.w + x] = 1;
+  }
+  const tiene = (m) => m.some((v) => v);
+  if (tiene(arriba)) return { w: sub.w, h: sub.h, d: arriba };
+  if (!(barritas >= 2 || multi)) return null;
+  return tiene(dentro) ? { w: sub.w, h: sub.h, d: dentro } : null;
+}
+
+function huecos(f) {
+  const inv = { w: f.w, h: f.h, d: f.d.map((v) => (v ? 0 : 1)) };
+  const { objs } = etiquetar(inv);
+  return objs.filter((o) => o.x0 > 0 && o.y0 > 0 && o.x1 < f.w && o.y1 < f.h && o.area >= 4).length;
+}
+
+function esCoda(f, sp) {
+  if (!(f.h >= 2.5 * sp && f.h <= 7 * sp && f.w >= 2.5 * sp && f.w <= 6.5 * sp)) return false;
+  let colMax = 0, filMax = 0;
+  for (let x = Math.floor(0.25 * f.w); x <= Math.floor(0.75 * f.w); x++) { let s = 0; for (let y = 0; y < f.h; y++) s += f.d[y * f.w + x]; colMax = Math.max(colMax, s / f.h); }
+  for (let y = Math.floor(0.25 * f.h); y <= Math.floor(0.75 * f.h); y++) { let s = 0; for (let x = 0; x < f.w; x++) s += f.d[y * f.w + x]; filMax = Math.max(filMax, s / f.w); }
+  return colMax >= 0.85 && filMax >= 0.75 && huecos(f) >= 3;
+}
+
+function esSegno(f, sp) {
+  const m = media(f);
+  if (!(f.h >= 3.8 * sp && f.h <= 6.5 * sp && f.w >= 2 * sp && f.w <= 5 * sp && m >= 0.2 && m <= 0.6)) return false;
+  if (huecos(f) > 2) return false;
+  let anchas = 0;
+  for (let y = 0; y < f.h; y++) { let c = 0; for (let x = 0; x < f.w; x++) c += f.d[y * f.w + x]; if (c > 0.8 * f.w) anchas++; }
+  return inclinacion(f) >= 0.15 && anchas / f.h < 0.25;
+}
+
+function signosDeRuta(pg, st, compases) {
+  compases.forEach((m, i) => {
+    const [x0, , x1] = m.box;
+    const s = pentagramaDe(st, m.box), sp = s.sp;
+    const ya = Math.max(0, Math.floor(s.top - 7 * sp)), yb = Math.floor(s.top + 2 * sp), xa = Math.max(0, Math.floor(x0 - 1.5 * sp));
+    const sub = sinLineas(pg, s, ya, yb, xa, x1);
+    const { lab, objs } = etiquetar(sub);
+    for (const o of objs) {
+      if (o.area < 20) continue;
+      const cxm = xa + (o.x0 + o.x1) / 2;
+      if (!(cxm >= x0 - 1.5 * sp && cxm <= x1)) continue;
+      const despues = cxm > x0 + 0.65 * (x1 - x0);
+      const k = despues ? Math.min(i + 1, compases.length - 1) : i;
+      const f = forma(sub, lab, o);
+      if (esCoda(f, sp)) compases[k].coda = true;
+      else if (esSegno(f, sp) && ya + o.y0 < s.top && s.top < ya + o.y1) compases[k].segno = true;
+    }
+  });
+}
+
+function cabezasDeNota(pg, st, box) {
+  const s = pentagramaDe(st, box), sp = s.sp;
+  const ya = Math.max(0, Math.floor(s.top - 2 * sp)), yb = Math.min(pg.h, Math.floor(s.bot + 2 * sp));
+  const xa = box[0] + Math.floor(sp), xb = box[2] - 2;
+  if (xb - xa < sp) return [];
+  const sub = sinLineas(pg, s, ya, yb, xa, xb);
+  const op = abrir(sub, Math.max(3, Math.round(0.55 * sp)));
+  const { lab, objs } = etiquetar(op);
+  const out = [];
+  for (const o of objs) {
+    const h = o.y1 - o.y0, w = o.x1 - o.x0, cy = ya + (o.y0 + o.y1) / 2;
+    if (!(h >= 0.95 * sp && h <= 1.6 * sp && w >= 1.15 * sp && w <= 2 * sp)) continue;
+    if (o.area / (h * w) > 0.9 || !(cy >= s.top - 1.2 * sp && cy <= s.bot + 1.2 * sp)) continue;
+    out.push([Math.round(xa + (o.x0 + o.x1) / 2), Math.round(cy)]);
+  }
+  out.sort((a, b) => a[0] - b[0]);
+  const juntas = [];
+  for (const [x, y] of out) { const u = juntas[juntas.length - 1]; if (u && x - u[0] < 0.6 * sp) u[1] = Math.min(u[1], y); else juntas.push([x, y]); }
+  return juntas;
+}
+
+/** Casillas: el corchete arriba de los compases (línea horizontal con un gancho hacia abajo a la
+ *  izquierda). La casilla que termina en :|| es la 1.ª (así se escribe siempre). */
+function casillas(pg, st, compases) {
+  compases.forEach((m, i) => {
+    const s = pentagramaDe(st, m.box), sp = s.sp;
+    const [x0, , x1] = m.box;
+    const ancho = x1 - x0;
+    let hallado = false;
+    for (let y = Math.floor(s.top - 4.5 * sp); y < s.top - 0.8 * sp && !hallado; y++) {
+      if (y < 0) continue;
+      // línea horizontal larga que empieza cerca del comienzo del compás
+      let a = -1, run = 0, mejor = 0, mejorA = 0;
+      for (let x = Math.max(0, Math.floor(x0 - sp)); x < x1; x++) {
+        if (pg.d[y * pg.w + x]) { if (run === 0) a = x; run++; if (run > mejor) { mejor = run; mejorA = a; } } else run = 0;
+      }
+      // (en el primer compás del sistema el corchete empieza después de la clave)
+      if (mejor < 0.5 * ancho || mejorA > x0 + Math.max(1.5 * sp, 0.35 * ancho)) continue;
+      // gancho: baja desde la punta izquierda
+      let baja = 0;
+      for (let yy = y + 1; yy < y + 2 * sp && yy < pg.h; yy++) {
+        let hay = false;
+        for (let x = mejorA; x < mejorA + 4; x++) if (pg.d[yy * pg.w + x]) hay = true;
+        if (!hay) break;
+        baja++;
+      }
+      if (baja >= 0.8 * sp) hallado = true;
+    }
+    if (hallado) m.casilla = true;
+  });
+  // la casilla (o la cadena de compases con casilla) que termina en :|| es la 1.ª
+  compases.forEach((m, i) => {
+    if (!m.casilla || !m.rep_end) return;
+    for (let k = i; k >= 0 && compases[k].casilla; k--) { compases[k].ending = 1; if (k < i && compases[k].rep_start) break; }
+  });
+  compases.forEach((m) => delete m.casilla);
+}
+
+/** El compás al que pertenece un texto (arriba o abajo de su pentagrama). */
+function compasDeTexto(st, compases, b) {
+  const cx = (b[0] + b[2]) / 2;
+  let mejor = null;
+  compases.forEach((m, k) => {
+    const s = pentagramaDe(st, m.box);
+    const dv = Math.max(0, s.top - b[3], b[1] - s.bot);
+    if (dv > 4 * s.sp) return;
+    const dh = m.box[0] <= cx && cx <= m.box[2] ? 0 : Math.min(Math.abs(cx - m.box[0]), Math.abs(cx - m.box[2]));
+    if (!mejor || dv + dh < mejor[0]) mejor = [dv + dh, k];
+  });
+  return mejor ? mejor[1] : null;
+}
+
+/** Lo que se lee con texto de la página: D.S., D.C., Fine, "6X's", casillas "1." y el ♩ = tempo. */
+function marcasDeTexto(st, compases, palabras) {
+  let tempo = null;
+  for (const r of palabras) {
+    const tx = r.text.trim(), up = tx.toUpperCase(), b = r.box;
+    const mm = tx.match(/=\s*(\d{2,3})\b/);
+    if (mm && st.length && b[3] < st[0].top && +mm[1] >= 30 && +mm[1] <= 320) tempo = +mm[1];
+    if (/\bD\.?\s*S\.?(\s|$|AL)|AL\s+SEGNO|DAL\s+SEGNO/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].ds = true; continue; }
+    if (/\bD\.?\s*C\.?(\s|$|AL)|DA\s+CAPO/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].dc = true; continue; }
+    if (/^\s*FINE\.?\s*$/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].fine = true; continue; }
+    const mx = tx.match(/^\s*(\d{1,2})\s*[xX×]\s*['´`’]?\s*[sS5]?\s*[|.]?\s*$/);
+    if (mx && +mx[1] >= 2 && +mx[1] <= 64) {
+      const cxt = (b[0] + b[2]) / 2;
+      let mejor = null;
+      for (const m of compases) {
+        const s = pentagramaDe(st, m.box);
+        if (!m.rep_end || !(s.top - 6 * s.sp <= b[3] && b[3] <= s.top + s.sp)) continue;
+        const d = Math.abs(m.box[2] - cxt);
+        if (d <= 6 * s.sp && (!mejor || d < mejor[0])) mejor = [d, m];
+      }
+      if (mejor) mejor[1].rep_times = +mx[1];
+      continue;
+    }
+    const toks = tx.split(/\s+/).reverse();
+    let uno = false;
+    for (const tk of toks) {
+      const a = tk.match(/^[[1lI|]?\s*([12])\s*\.$/) || tk.match(/^[[|]?\s*(1)$/);
+      if (a) { uno = a[1] === "1"; break; }
+    }
+    if (!uno) continue;
+    for (const m of compases) {
+      const s = pentagramaDe(st, m.box);
+      if (m.box[0] - 2 * s.sp <= b[0] && b[0] <= m.box[0] + 5 * s.sp && s.top - 6 * s.sp <= b[3] && b[3] <= s.top + s.sp) { m.ending = 1; break; }
+    }
+  }
+  return tempo;
+}
+
+// ---------------------------------------------------------------- orden de los compases
+function secuencia(ms) {
+  const n = ms.length, seq = [];
+  const segno = ms.findIndex((m) => m.segno);
+  const codas = ms.map((m, k) => (m.coda ? k : -1)).filter((k) => k >= 0);
+  let alCoda = codas.length >= 2 ? codas[0] : -1;
+  const coda = codas.length >= 2 ? codas[codas.length - 1] : -1;
+  const poner = (k) => { for (let i = 0; i < Math.max(1, ms[k].times || 1); i++) seq.push(k); };
+  let i = 0, sec = 0, repite = true, salto = false, vuelta = false;
+  while (i < n && seq.length <= 20000) {
+    const m = ms[i];
+    if (vuelta && alCoda >= 0 && i === alCoda) { i = coda; alCoda = -1; repite = true; vuelta = false; sec = coda; continue; }
+    if (!repite && m.ending === 1) { i++; continue; }
+    if (repite && m.rep_start) sec = i;
+    poner(i);
+    if (repite && m.rep_end) {
+      const veces = Math.max(1, m.rep_times || 2);
+      for (let p = 2; p <= veces; p++) for (let k = sec; k <= i; k++) { if (p === veces && ms[k].ending === 1) continue; poner(k); }
+      sec = i + 1;
+    }
+    if (vuelta && m.fine) break;
+    if (!salto && ((m.ds && segno >= 0) || m.dc)) { salto = true; vuelta = true; repite = false; i = m.ds && segno >= 0 ? segno : 0; continue; }
+    i++;
+  }
+  return seq;
+}
+
+function textoDeOrden(seq) {
+  const iguales = [];
+  for (const k of seq) { const u = iguales[iguales.length - 1]; if (u && u[0] === k) u[1]++; else iguales.push([k, 1]); }
+  const tramos = [];
+  for (const [k, c] of iguales) { const u = tramos[tramos.length - 1]; if (c === 1 && u && u[2] === 1 && k === u[1] + 1) u[1] = k; else tramos.push([k, k, c]); }
+  const toks = [];
+  for (const [a, b, c] of tramos) {
+    const u = toks[toks.length - 1];
+    if (c > 1) toks.push([a, b, c]);
+    else if (u && u[0] === a && u[1] === b && u[3]) u[2]++;
+    else toks.push([a, b, 1, true]);
+  }
+  return toks.map(([a, b, c]) => (a === b ? `${a + 1}` : `${a + 1}-${b + 1}`) + (c > 1 ? ` x${c}` : "")).join(", ");
+}
+
+function leerOrden(texto, n) {
+  const out = [];
+  for (const crudo of texto.split(/[,;\n]+/)) {
+    const tok = crudo.trim();
+    if (!tok) continue;
+    const m = tok.match(/^(\d+)\s*(?:[-–a]\s*(\d+))?\s*(?:[x×*]\s*(\d+))?$/i);
+    if (!m) throw new Error(t("No entiendo «{x}». Escribe por ejemplo: 1-8 x2, 9-16, 5-8", { x: tok }));
+    const a = +m[1], b = +(m[2] ?? m[1]), v = +(m[3] ?? 1);
+    if (a < 1 || a > n || b < 1 || b > n) throw new Error(t("«{x}»: la partitura tiene {n} compases", { x: tok, n }));
+    if (v > 128) throw new Error(t("«{x}»: demasiadas repeticiones", { x: tok }));
+    const paso = b >= a ? 1 : -1, tramo = [];
+    for (let k = a; paso > 0 ? k <= b : k >= b; k += paso) tramo.push(k - 1);
+    for (let i = 0; i < v; i++) out.push(...tramo);
+    if (out.length > 20000) throw new Error(t("El orden es demasiado largo"));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- pulso de la canción
+/** FFT (radix 2, en el lugar). */
+function fft(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (-2 * Math.PI) / len, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const ar = re[i + k], ai = im[i + k], br = re[i + k + len / 2], bi = im[i + k + len / 2];
+        const tr = br * cr - bi * ci, ti = br * ci + bi * cr;
+        re[i + k] = ar + tr; im[i + k] = ai + ti; re[i + k + len / 2] = ar - tr; im[i + k + len / 2] = ai - ti;
+        const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
+      }
+    }
+  }
+}
+
+/** Fuerza de los ataques, 100 por segundo: cuánto sube la energía en cada banda de frecuencia
+ *  (flujo espectral en escala logarítmica, la misma idea que el detector de la Mac). */
+function ataques(mono, sr) {
+  // a ~11 kHz: suficiente para golpes y ataques, y 4 veces más rápido
+  const paso = Math.max(1, Math.round(sr / 11025)), sr2 = sr / paso;
+  const n2 = Math.floor(mono.length / paso), x = new Float32Array(n2);
+  for (let i = 0; i < n2; i++) { let s = 0; for (let k = 0; k < paso; k++) s += mono[i * paso + k]; x[i] = s / paso; }
+  const fps = 100, hop = sr2 / fps, N = 1024;
+  const F = Math.max(0, Math.floor((n2 - N) / hop));
+  const ventana = new Float32Array(N).map((_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N));
+  // bandas en escala logarítmica (40 entre 40 Hz y 5 kHz)
+  const nb = 40, lim = [];
+  for (let b = 0; b <= nb; b++) lim.push(Math.max(1, Math.round((40 * Math.pow(5000 / 40, b / nb)) / (sr2 / N))));
+  const prev = new Float32Array(nb), env = new Float32Array(F);
+  const re = new Float32Array(N), im = new Float32Array(N);
+  for (let f = 0; f < F; f++) {
+    const ini = Math.round(f * hop);
+    for (let i = 0; i < N; i++) { re[i] = x[ini + i] * ventana[i]; im[i] = 0; }
+    fft(re, im);
+    let flujo = 0;
+    for (let b = 0; b < nb; b++) {
+      let e = 0;
+      for (let k = lim[b]; k < Math.max(lim[b] + 1, lim[b + 1]); k++) e += re[k] * re[k] + im[k] * im[k];
+      const v = Math.log(1 + 100 * e);
+      if (f) flujo += Math.max(0, v - prev[b]);
+      prev[b] = v;
+    }
+    env[f] = flujo;
+  }
+  // la ventana mira hacia adelante: el ataque cae en su centro
+  const corrimiento = Math.round((N / 2 / sr2) * fps);
+  const m = new Float32Array(F), r = 25;
+  let suma = 0;
+  for (let f = 0; f < Math.min(F, r); f++) suma += env[f];
+  for (let f = 0; f < F; f++) {
+    if (f + r < F) suma += env[f + r];
+    if (f - r - 1 >= 0) suma -= env[f - r - 1];
+    const cnt = Math.min(F, f + r + 1) - Math.max(0, f - r);
+    const v = Math.max(0, env[f] - suma / cnt);
+    const g = f + corrimiento;
+    if (g < F) m[g] = v;
+  }
+  return { m, fps };
+}
+
+/** Pulsos de la grabación: tempo por autocorrelación y luego el mejor camino de pulsos
+ *  (programación dinámica de Ellis, la misma idea que librosa). Al final se elige el lado
+ *  del pulso (a tiempo o a contratiempo) que coincide con los ataques más fuertes. */
+function pulsos(mono, sr) {
+  const { m, fps } = ataques(mono, sr);
+  const F = m.length;
+  if (F < fps * 6) throw new Error(t("El audio es demasiado corto"));
+  const lagMin = Math.floor(fps * 60 / 210), lagMax = Math.ceil(fps * 60 / 55);
+  const ac = new Float32Array(lagMax * 2 + 2);
+  const tope = Math.min(F, fps * 240);
+  for (let lag = lagMin; lag <= Math.min(lagMax * 2, tope - 1); lag++) { let s = 0; for (let f = lag; f < tope; f++) s += m[f] * m[f - lag]; ac[lag] = s / (tope - lag); }
+  let mejor = -1, L = 0;
+  for (let lag = lagMin; lag <= lagMax; lag++) {
+    const bpm = fps * 60 / lag, peso = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 115) / 0.9, 2));
+    const v = (ac[lag] + 0.5 * (ac[lag * 2] || 0)) * peso;
+    if (v > mejor) { mejor = v; L = lag; }
+  }
+  if (!L) throw new Error(t("No encontré el pulso de esta grabación"));
+  let sd = 0; for (let f = 0; f < F; f++) sd += m[f] * m[f]; sd = Math.sqrt(sd / F) || 1;
+  const o = new Float32Array(F); for (let f = 0; f < F; f++) o[f] = m[f] / sd;
+  // el período fino: un "peine" de pulsos a lo largo de toda la canción; gana el período (en pasos
+  // de 0,05 cuadros) cuyo peine cae mejor sobre los ataques. Un 1 % de error en el tempo corre el
+  // pulso medio tiempo cada 20 segundos.
+  const suave = new Float32Array(F);
+  for (let f = 0; f < F; f++) { let mx = 0; for (let k = -1; k <= 1; k++) if (f + k >= 0 && f + k < F) mx = Math.max(mx, o[f + k]); suave[f] = mx; }
+  let P = L, mejorPeine = -1;
+  for (let cand = L * 0.95; cand <= L * 1.05; cand += 0.05) {
+    // por tramos de 20 s (el tempo de una grabación en vivo se mueve un poco)
+    let total = 0;
+    const tramo = 20 * fps;
+    for (let ini = 0; ini < F; ini += tramo) {
+      let mejorFase = 0;
+      for (let fase = 0; fase < cand; fase += 1) {
+        let sum = 0, cnt = 0;
+        for (let x = ini + fase; x < Math.min(F, ini + tramo); x += cand) { sum += suave[Math.round(x)] || 0; cnt++; }
+        if (cnt && sum / cnt > mejorFase) mejorFase = sum / cnt;
+      }
+      total += mejorFase;
+    }
+    if (total > mejorPeine) { mejorPeine = total; P = cand; }
+  }
+  const puntaje = new Float32Array(F), atras = new Int32Array(F).fill(-1);
+  const apriete = 100;
+  for (let f = 0; f < F; f++) {
+    let best = -Infinity, bi = -1;
+    // sin saltos de medio pulso: el pulso puede apurarse o frenarse un poco, no cambiarse al contratiempo
+    for (let p = f - Math.round(1.25 * P); p <= f - Math.round(0.8 * P); p++) {
+      if (p < 0) continue;
+      const v = puntaje[p] - apriete * Math.pow(Math.log((f - p) / P), 2);
+      if (v > best) { best = v; bi = p; }
+    }
+    puntaje[f] = o[f] + (bi >= 0 ? Math.max(0, best) : 0);
+    atras[f] = bi >= 0 && best > 0 ? bi : -1;
+  }
+  let fin = F - 1, maxP = -Infinity;
+  for (let f = Math.max(0, F - Math.round(2 * P)); f < F; f++) if (puntaje[f] > maxP) { maxP = puntaje[f]; fin = f; }
+  let cuadros = [];
+  for (let f = fin; f >= 0; f = atras[f]) { cuadros.push(f); if (atras[f] < 0) break; }
+  cuadros.reverse();
+  // a tiempo o a contratiempo: dónde caen los ataques más fuertes (suavizado de ±2 cuadros)
+  const fuerza = (fs) => { let s = 0; for (const f of fs) { let mx = 0; for (let k = -2; k <= 2; k++) if (f + k >= 0 && f + k < F) mx = Math.max(mx, o[f + k]); s += mx; } return s / Math.max(1, fs.length); };
+  const medios = cuadros.slice(0, -1).map((f, i) => Math.round((f + cuadros[i + 1]) / 2));
+  if (fuerza(medios) > fuerza(cuadros) * 1.15) cuadros = medios;
+  return pulsoParejo(cuadros.map((f) => f / fps));
+}
+
+/** Pulso parejo: si un tramo sale contado al doble o hay un pulso suelto, se sigue el principal. */
+function pulsoParejo(b) {
+  if (b.length < 4) return b.map((x) => Math.round(x * 1000) / 1000);
+  const d = b.slice(1).map((x, i) => x - b[i]).sort((x, y) => x - y);
+  const P = d[Math.floor(d.length / 2)];
+  const out = [b[0]], recientes = [];
+  let i = 1;
+  while (i < b.length) {
+    let per = P;
+    if (recientes.length >= 3) { const r = recientes.slice(-8).sort((x, y) => x - y); per = r[Math.floor(r.length / 2)]; }
+    per = Math.min(Math.max(per, 0.85 * P), 1.15 * P);
+    const ult = out[out.length - 1], esp = ult + per;
+    let mejor = -1;
+    for (let j = i; j < b.length && b[j] <= ult + 1.45 * per; j++) if (b[j] >= ult + 0.55 * per && (mejor < 0 || Math.abs(b[j] - esp) < Math.abs(b[mejor] - esp))) mejor = j;
+    if (mejor >= 0) { recientes.push(b[mejor] - ult); out.push(b[mejor]); i = mejor + 1; }
+    else if (b[i] > ult + 1.45 * per) out.push(esp);
+    else i++;
+  }
+  return out.map((x) => Math.round(x * 1000) / 1000);
+}
+
+/** Pulsos detectados por compás: por el ♩ escrito o por la duración de la canción. */
+function pulsosPorCompas(bpm, beats, duracion, nCompases, tempo) {
+  if (tempo && bpm) {
+    const ops = [1, 2, 3, 4, 6, 8];
+    const b = ops.reduce((a, x) => (Math.abs(x - 4 * bpm / tempo) < Math.abs(a - 4 * bpm / tempo) ? x : a));
+    return [b, b !== 4 ? t("la partitura dice ♩ = {t} y el pulso detectado es {b}", { t: tempo, b: Math.round(bpm) }) : ""];
+  }
+  if (bpm && beats.length > 1 && nCompases) {
+    const dur = duracion - beats[0], per = 60 / bpm;
+    const caben = [2, 4, 8].filter((b) => nCompases * b * per <= dur * 1.08);
+    if (caben.length) { const b = Math.max(...caben); if (b !== 4) return [b, t("así la partitura dura lo mismo que la grabación")]; }
+  }
+  return [4, ""];
+}
+
+// ---------------------------------------------------------------- tiempo de cada compás
+function pulsoEn(beats, i) {
+  const n = beats.length;
+  if (n < 2) return 0;
+  if (i < 0) return beats[0] + i * (beats[1] - beats[0]);
+  if (i >= n) { const k = Math.min(8, n - 1); return beats[n - 1] + (i - n + 1) * (beats[n - 1] - beats[n - 1 - k]) / k; }
+  const f = Math.floor(i);
+  return f === i || f + 1 >= n ? beats[f] : beats[f] + (i - f) * (beats[f + 1] - beats[f]);
+}
+function pulsoCercano(beats, t0) { let m = 0; for (let i = 1; i < beats.length; i++) if (Math.abs(beats[i] - t0) < Math.abs(beats[m] - t0)) m = i; return m; }
+function tiemposDeCompases(n, beats, b0, bpb, marcas = []) {
+  const out = [], nt = Math.min(marcas.length, n + 1);
+  for (let k = 0; k < nt; k++) out.push(marcas[k]);
+  if (out.length === n + 1) return out;
+  let base = b0, desde = 0;
+  if (nt) { base = pulsoCercano(beats, marcas[nt - 1]); desde = nt - 1; }
+  for (let k = nt; k <= n; k++) out.push(pulsoEn(beats, base + (k - desde) * bpb));
+  return out;
+}
+function posicionEn(tiempos, t0) {
+  if (tiempos.length < 2 || t0 < tiempos[0]) return { pos: -1, frac: 0 };
+  let lo = 0, hi = tiempos.length - 1;
+  if (t0 >= tiempos[hi]) return { pos: hi - 1, frac: 1 };
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (tiempos[mid] <= t0) lo = mid; else hi = mid; }
+  return { pos: lo, frac: (t0 - tiempos[lo]) / Math.max(1e-6, tiempos[lo + 1] - tiempos[lo]) };
+}
+function vueltaDe(seq, pos) {
+  if (pos < 0 || pos >= seq.length) return { n: 0, de: 0 };
+  const k = seq[pos];
+  let a = pos, b = pos;
+  while (a > 0 && seq[a - 1] === k) a--;
+  while (b + 1 < seq.length && seq[b + 1] === k) b++;
+  return { n: pos - a + 1, de: b - a + 1 };
+}
+
+/* =====================================================================
+ * Lectura Pro (web): pantalla, guardado en el navegador, PDF, lector de
+ * números y reproductor. El motor de lectura está más arriba.
+ * ===================================================================== */
+
+// ---------------------------------------------------------------- textos
+// La clave es el texto en español; aquí va su versión en inglés. {x} se reemplaza con datos.
+const TEXTOS = {
+  en: {
+    "Herramientas para músicos": "Tools for musicians",
+    "La partitura sigue a la canción: repeticiones, ×N, casillas y saltos": "The score follows the song: repeats, ×N, endings and jumps",
+    "Ajustes": "Settings", "Cerrar": "Close", "Idioma": "Language", "Paleta de colores": "Color palette",
+    "Apoya este proyecto en PayPal": "Support this project on PayPal",
+    "Hecha por Anggelo Berdejo — El Ñañe": "Built by Anggelo Berdejo — El Ñañe", "Otras herramientas": "More tools",
+    "Tus partituras": "Your scores",
+    "Sube el PDF de la partitura y el audio de la canción, y dale play: el compás que suena se va marcando y la página baja sola. Lee sola los números de compases (un 9 = nueve vueltas), las repeticiones, las casillas y el D.S. al coda.":
+      "Upload the score's PDF and the song's audio, then press play: the bar that is sounding lights up and the page scrolls by itself. It reads bar counts (a 9 = nine times), repeats, endings and D.S. al coda on its own.",
+    "Todo queda guardado en este teléfono o computadora: nada se sube a internet.": "Everything stays on this phone or computer: nothing is uploaded.",
+    "Busca por canción o por nombre…": "Search by song or name…", "Subir PDF": "Upload PDF",
+    "Todavía no tienes partituras. Sube el PDF aquí.": "You don't have any scores yet. Upload the PDF here.",
+    "No tienes una partitura que se llame «{q}».": "You don't have a score called “{q}”.",
+    "Sin canción todavía": "No song yet", "Renombrar": "Rename", "Borrar": "Delete",
+    "Nombre de la partitura": "Score name",
+    "¿Borrar «{x}»? Se pierden la canción y las marcas que le pusiste.": "Delete “{x}”? Its song and your marks will be lost.",
+    "Seguir con «{x}»": "Continue with “{x}”",
+    "Partituras": "Scores", "{n} compases": "{n} bars", "{n} página": "{n} page", "{n} páginas": "{n} pages",
+    "Abriendo el PDF…": "Opening the PDF…", "Leyendo la página {n} de {m}…": "Reading page {n} of {m}…",
+    "Leyendo los números y las marcas (la primera vez baja el lector de texto)…": "Reading numbers and marks (the first time it downloads the text reader)…",
+    "Escuchando el pulso de la canción…": "Listening to the song's beat…",
+    "No pude leer el PDF": "I couldn't read the PDF", "No pude leer el audio": "I couldn't read the audio",
+    "Sin internet no puedo leer los números la primera vez; los compases sí están.": "Without internet I can't read the numbers the first time; the bars are there.",
+    "No encontré pentagramas en este PDF.": "I couldn't find any staves in this PDF.",
+    "Ponle la canción": "Add the song",
+    "Sube el audio de la canción (mp3, m4a, wav…). La app escucha el pulso y lo alinea con los compases.": "Upload the song's audio (mp3, m4a, wav…). The app listens to the beat and lines it up with the bars.",
+    "Subir audio": "Upload audio", "Cambiar canción": "Change song", "pulsos por compás": "beats per bar",
+    "Play / pausa (barra espaciadora)": "Play / pause (space bar)", "Tocar": "Play", "Pausar": "Pause",
+    "Compás anterior (←)": "Previous bar (←)", "Compás siguiente (→)": "Next bar (→)",
+    "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
+    "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
+    "Bajar la página sola": "Scroll the page by itself",
+    "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
+    "El compás 1 empieza en": "Bar 1 starts at",
+    "Pon play y aprieta M justo cuando empieza el compás 1": "Press play and hit M right when bar 1 starts",
+    "Marcar aquí (M)": "Mark here (M)", "◀ compás": "◀ bar", "◀ pulso": "◀ beat", "pulso ▶": "beat ▶", "compás ▶": "bar ▶",
+    "Pulsos por compás": "Beats per bar",
+    "Puse {n} porque {r}.": "I set {n} because {r}.",
+    "En 2/2 o salsa rápida a veces el pulso sale a la mitad o al doble: prueba 2 u 8.": "In 2/2 or fast salsa the beat is sometimes heard at half or double speed: try 2 or 8.",
+    "Marcar a mano": "Mark by hand",
+    "Para grabaciones en vivo o con cambios de tempo: pon play y aprieta T (o el botón) al comienzo de cada compás.": "For live recordings or tempo changes: press play and hit T (or the button) at the start of each bar.",
+    "Llevas {n} de {m}.": "{n} of {m} marked.", "Borrar marcas": "Clear marks", "Marcar compás (T)": "Mark bar (T)",
+    "Orden": "Order", "Orden de los compases": "Bar order", "Usar el de las marcas": "Use the one from the marks",
+    "Listo": "Done", "✎ Repeticiones y compases": "✎ Repeats and bars",
+    "Orden escrito a mano.": "Order written by hand.", "Orden según las marcas de repetición.": "Order from the repeat marks.",
+    "Ej.: 1-8 x2, 9-16, 5 x4, 17-24 = del 1 al 8 dos veces, del 9 al 16, el compás 5 cuatro veces… El segno, la coda (⊕) y «D.S./al segno» se leen solos; en la vuelta del D.S. no se toman las repeticiones. Si tu partitura pide otra cosa, escríbelo aquí.":
+      "E.g. 1-8 x2, 9-16, 5 x4, 17-24 = bars 1 to 8 twice, 9 to 16, bar 5 four times… The segno, the coda (⊕) and “D.S./al segno” are read automatically; repeats are not taken after the D.S. If your score asks for something else, write it here.",
+    "Se toca": "Played", "vez/veces seguidas": "time(s) in a row",
+    "||: empieza repetición": "||: repeat starts", ":|| termina": ":|| ends", "vueltas": "times", "1.ª casilla": "1st ending",
+    "D.S. aquí": "D.S. here", "D.C. aquí": "D.C. here",
+    "Partir en dos": "Split in two", "Unir con el siguiente": "Join with the next one", "No es un compás": "Not a bar",
+    "Toca un compás para marcarle ×N, repetición o casilla. Si falta un compás, arrastra sobre la partitura para dibujarlo.":
+      "Tap a bar to mark ×N, a repeat or an ending. If a bar is missing, drag over the score to draw it.",
+    "Volver a leer la partitura": "Read the score again",
+    "¿Volver a leer la partitura? Se pierden los cambios que hiciste a los cuadros y al orden.": "Read the score again? Your changes to the boxes and the order will be lost.",
+    "Tocar desde el compás {n}": "Play from bar {n}", "Página {n}": "Page {n}",
+    "No entiendo «{x}». Escribe por ejemplo: 1-8 x2, 9-16, 5-8": "I don't understand “{x}”. Write for example: 1-8 x2, 9-16, 5-8",
+    "«{x}»: la partitura tiene {n} compases": "“{x}”: the score has {n} bars",
+    "«{x}»: demasiadas repeticiones": "“{x}”: too many repeats", "El orden es demasiado largo": "The order is too long",
+    "El audio es demasiado corto": "The audio is too short", "No encontré el pulso de esta grabación": "I couldn't find the beat of this recording",
+    "la partitura dice ♩ = {t} y el pulso detectado es {b}": "the score says ♩ = {t} and the detected beat is {b}",
+    "así la partitura dura lo mismo que la grabación": "that way the score lasts as long as the recording",
+    "Guardado": "Saved", "Leída: {n} compases": "Read: {n} bars",
+  },
+};
+let idioma = "es";
+function t(es, datos) {
+  let s = idioma === "en" ? TEXTOS.en[es] ?? es : es;
+  if (datos) for (const [k, v] of Object.entries(datos)) s = s.split(`{${k}}`).join(String(v));
+  return s;
+}
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...hijos) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null && v !== false) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const h of hijos.flat()) if (h !== null && h !== undefined && h !== false) e.append(h instanceof Node ? h : String(h));
+  return e;
+};
+
+// ---------------------------------------------------------------- preferencias
+const PREFIJO = "lectura-pro-web:";
+function guardarPref(k, v) { try { localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch (e) {} }
+function leerPref(k, def) { try { const v = localStorage.getItem(PREFIJO + k); return v === null ? def : JSON.parse(v); } catch (e) { return def; } }
+
+let avisoTimer = null;
+function aviso(texto) {
+  const a = $("aviso");
+  a.textContent = texto;
+  a.classList.add("visible");
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => a.classList.remove("visible"), 2800);
+}
+
+let tema = "calido";
+function aplicarTema(clave) {
+  tema = TEMAS[clave] ? clave : "calido";
+  const vars = TEMAS[tema].vars;
+  Object.keys(vars).forEach((k) => document.documentElement.style.setProperty("--" + k, vars[k]));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", vars.bg);
+  guardarPref("tema", tema);
+  pintarTemas();
+}
+function pintarTemas() {
+  const caja = $("temas");
+  caja.innerHTML = "";
+  for (const k of Object.keys(TEMAS)) {
+    const v = TEMAS[k].vars;
+    caja.append(el("button", { type: "button", class: "theme-card" + (k === tema ? " active" : ""), "aria-pressed": k === tema ? "true" : "false", onclick: () => aplicarTema(k) },
+      el("div", { class: "theme-card-swatches" }, [v.bg, v.brass, v.ember].map((c) => { const s = el("span", { class: "theme-swatch" }); s.style.background = c; return s; })),
+      el("div", { class: "theme-card-name", text: TEMAS[k][idioma] || TEMAS[k].es })));
+  }
+}
+function aplicarIdioma(nuevo) {
+  idioma = nuevo === "en" ? "en" : "es";
+  document.documentElement.lang = idioma;
+  document.querySelectorAll("[data-i18n]").forEach((e) => { e.textContent = t(e.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach((e) => { e.placeholder = t(e.dataset.i18nPh); });
+  document.querySelectorAll("[data-i18n-aria]").forEach((e) => e.setAttribute("aria-label", t(e.dataset.i18nAria)));
+  document.querySelectorAll("#idiomas button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.idioma === idioma ? "true" : "false"));
+  guardarPref("idioma", idioma);
+  pintarTemas();
+  if (actual) pintarLector(); else pintarLista();
+}
+
+let wakeLock = null;
+async function mantenerPantalla() { try { if ("wakeLock" in navigator && !wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {} }
+function soltarPantalla() { try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {} }
+
+// ---------------------------------------------------------------- guardado (IndexedDB)
+function abrirDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("lectura-pro-web", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("partituras", { keyPath: "id" });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function db(modo, fn) {
+  const base = await abrirDB();
+  return new Promise((res, rej) => {
+    const tx = base.transaction("partituras", modo);
+    const r = fn(tx.objectStore("partituras"));
+    tx.oncomplete = () => res(r && r.result);
+    tx.onerror = () => rej(tx.error);
+  });
+}
+const todas = () => db("readonly", (s) => s.getAll());
+const leer = (id) => (id ? db("readonly", (s) => s.get(id)) : Promise.resolve(undefined));
+const guardar = (p) => db("readwrite", (s) => s.put(p));
+const borrar = (id) => db("readwrite", (s) => s.delete(id));
+let guardarTimer = null;
+function guardarLuego() { clearTimeout(guardarTimer); guardarTimer = setTimeout(() => actual && guardar(actual).catch(() => aviso("⚠")), 400); }
+
+// ---------------------------------------------------------------- librerías (se cargan solo cuando hacen falta)
+function cargarScript(src) {
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src)); document.head.append(s); });
+}
+let pdfjsListo = null;
+function pdfjs() {
+  if (!pdfjsListo) pdfjsListo = cargarScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js").then(() => {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    return window.pdfjsLib;
+  });
+  return pdfjsListo;
+}
+let lectorListo = null;
+function lectorDeTexto() {
+  if (!lectorListo) lectorListo = cargarScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js")
+    .then(() => window.Tesseract.createWorker("eng"));
+  return lectorListo;
+}
+
+// ---------------------------------------------------------------- leer el PDF
+const ANCHO = 1400;
+function progreso(texto) { const p = $("progreso"); p.hidden = !texto; p.textContent = texto || ""; }
+
+/** Lienzo con la tinta de una parte, en blanco y negro, ampliado para el lector de texto. */
+function lienzoDe(parte) {
+  let x0 = parte.w, y0 = parte.h, x1 = 0, y1 = 0;
+  for (let y = 0; y < parte.h; y++) for (let x = 0; x < parte.w; x++) if (parte.d[y * parte.w + x]) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, esc = Math.max(1, 70 / h), pad = 30;
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * esc) + 2 * pad; c.height = Math.round(h * esc) + 2 * pad;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  const chico = document.createElement("canvas");
+  chico.width = w; chico.height = h;
+  const cg = chico.getContext("2d"), im = cg.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = parte.d[(y0 + y) * parte.w + x0 + x] ? 0 : 255, i = (y * w + x) * 4;
+    im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255;
+  }
+  cg.putImageData(im, 0, 0);
+  g.imageSmoothingEnabled = true;
+  g.drawImage(chico, pad, pad, Math.round(w * esc), Math.round(h * esc));
+  return c;
+}
+
+/** Huecos cerrados de una cifra, con su altura (0 = arriba, 1 = abajo). */
+function huecosDe(f) {
+  const inv = { w: f.w, h: f.h, d: f.d.map((v) => (v ? 0 : 1)) };
+  const { objs } = etiquetar(inv);
+  return objs.filter((o) => o.x0 > 0 && o.y0 > 0 && o.x1 < f.w && o.y1 < f.h && o.area >= 4)
+    .map((o) => ({ cy: (o.y0 + o.y1) / 2 / f.h, alto: (o.y1 - o.y0) / f.h }));
+}
+const HUECOS_ESPERADOS = { 0: [1], 1: [0], 2: [0], 3: [0], 4: [0, 1], 5: [0], 6: [1], 7: [0], 8: [2], 9: [1] };
+
+/** Una cifra por su forma (para fuentes escritas a mano que el lector de texto no conoce):
+ *  cuántos huecos tiene y dónde, y si tiene una barra llena arriba o abajo. */
+function digitoPorForma(f) {
+  const hs = huecosDe(f);
+  if (hs.length >= 2) return "8";
+  if (hs.length === 1) {
+    const { cy, alto } = hs[0];
+    if (alto > 0.45) return "0";
+    if (cy < 0.45) return "9";
+    if (cy > 0.55) return "6";
+    return null;
+  }
+  if (f.w / f.h < 0.42) return "1";
+  const llenoFila = (y) => { let c = 0; for (let x = 0; x < f.w; x++) c += f.d[y * f.w + x]; return c / f.w; };
+  const banda = (a, b) => { let m = 0; for (let y = Math.floor(a * f.h); y < Math.ceil(b * f.h); y++) m = Math.max(m, llenoFila(y)); return m; };
+  const mediaFilas = (a, b) => { let s = 0, n = 0; for (let y = Math.floor(a * f.h); y < Math.ceil(b * f.h); y++) { s += llenoFila(y); n++; } return n ? s / n : 0; };
+  const arriba = banda(0, 0.22), abajo = banda(0.78, 1), mitadBaja = mediaFilas(0.5, 1);
+  if (arriba > 0.75 && abajo < 0.5 && mitadBaja < 0.35) return "7";
+  if (abajo > 0.75 && arriba < 0.8) return "2";
+  return null;
+}
+
+/** Lo que dijo el lector de texto vs. lo que dice la forma: si no coinciden los huecos, manda la forma. */
+function elegirCifra(leida, confianza, f) {
+  const porForma = digitoPorForma(f);
+  const nh = huecosDe(f).length;
+  const encaja = /^\d$/.test(leida) && HUECOS_ESPERADOS[leida].includes(Math.min(nh, 2));
+  if (encaja && confianza >= 80) return leida;
+  if (porForma) return porForma;
+  return encaja ? leida : null;
+}
+
+async function leerNumero(lector, parte) {
+  const { lab, objs } = etiquetar(parte);
+  const cifras = objs.filter((o) => o.area >= 20).sort((a, b) => a.x0 - b.x0);
+  await lector.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "7" });
+  const { data } = await lector.recognize(lienzoDe(parte));
+  const txt = (data.text || "").replace(/\s+/g, "");
+  // de una vez, si es seguro y cada cifra tiene los huecos que debe tener
+  if (/^\d{1,3}$/.test(txt) && data.confidence >= 75 && txt.length === cifras.length &&
+      cifras.every((o, k) => HUECOS_ESPERADOS[txt[k]].includes(Math.min(huecosDe(forma(parte, lab, o)).length, 2)))) return valido(+txt);
+  // si no, cifra por cifra, de izquierda a derecha
+  if (!cifras.length || cifras.length > 3) return null;
+  await lector.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "10" });
+  let num = "";
+  for (const o of cifras) {
+    const f = forma(parte, lab, o);
+    const r = await lector.recognize(lienzoDe(f));
+    const d = elegirCifra((r.data.text || "").replace(/\s+/g, ""), r.data.confidence, f);
+    if (!d) return null;
+    num += d;
+  }
+  return valido(+num);
+}
+const valido = (v) => (v >= 2 && v <= 128 ? v : null);
+
+/** Lee un pedazo de la página (lo que haya escrito ahí). */
+async function leerPedazo(lector, lienzo, x0, y0, x1, y1, permitidos = "") {
+  x0 = Math.max(0, Math.round(x0)); y0 = Math.max(0, Math.round(y0)); x1 = Math.min(lienzo.width, Math.round(x1)); y1 = Math.min(lienzo.height, Math.round(y1));
+  if (x1 - x0 < 8 || y1 - y0 < 8) return "";
+  const esc = 2, pad = 20, c = document.createElement("canvas");
+  c.width = (x1 - x0) * esc + 2 * pad; c.height = (y1 - y0) * esc + 2 * pad;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(lienzo, x0, y0, x1 - x0, y1 - y0, pad, pad, (x1 - x0) * esc, (y1 - y0) * esc);
+  await lector.setParameters({ tessedit_char_whitelist: permitidos, tessedit_pageseg_mode: "6" });
+  const { data } = await lector.recognize(c);
+  return (data.text || "").trim();
+}
+
+/** "6X's" sobre los :|| y el ♩ = tempo arriba del primer pentagrama. */
+async function leerPedazos(lector, lienzo, st, ms, esPrimera) {
+  let tempo = null;
+  for (const m of ms) {
+    if (!m.rep_end) continue;
+    const s = pentagramaDe(st, m.box), sp = s.sp;
+    const txt = await leerPedazo(lector, lienzo, m.box[2] - 7 * sp, s.top - 4.5 * sp, m.box[2] + 1.5 * sp, s.top - 0.2 * sp);
+    const mx = txt.match(/(\d{1,2})\s*[xX×]\s*['´`’]?\s*[sS5]?/);
+    if (mx && +mx[1] >= 2 && +mx[1] <= 64) m.rep_times = +mx[1];
+  }
+  if (esPrimera && st.length) {
+    const s = st[0];
+    const txt = await leerPedazo(lector, lienzo, s.x0 - s.sp, s.top - 8 * s.sp, s.x0 + 14 * s.sp, s.top - 1.5 * s.sp, "0123456789=JjdI|l♩ ");
+    const mm = txt.match(/=\s*(\d{2,3})/) || txt.match(/[Jjd♩|lI]\s*=?\s*(\d{2,3})\b/);
+    if (mm && +mm[1] >= 30 && +mm[1] <= 320) tempo = +mm[1];
+  }
+  return tempo;
+}
+
+/** Textos de la página (D.S., 6X's, casillas, ♩ = tempo). Antes se borran los pentagramas:
+ *  las líneas confunden al lector y los textos están arriba o abajo de ellos. */
+async function leerTextos(lector, lienzo, st) {
+  const c = document.createElement("canvas");
+  c.width = lienzo.width; c.height = lienzo.height;
+  const g = c.getContext("2d");
+  g.drawImage(lienzo, 0, 0);
+  g.fillStyle = "#fff";
+  for (const s of st) g.fillRect(0, Math.floor(s.top - 0.4 * s.sp), c.width, Math.ceil(s.bot - s.top + 0.8 * s.sp));
+  await lector.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "11" });
+  const { data } = await lector.recognize(c);
+  const caja = (b) => [b.x0, b.y0, b.x1, b.y1];
+  return [...(data.lines || []).map((l) => ({ text: l.text, box: caja(l.bbox) })), ...(data.words || []).map((w) => ({ text: w.text, box: caja(w.bbox) }))];
+}
+
+async function analizarPDF(blob) {
+  const lib = await pdfjs();
+  progreso(t("Abriendo el PDF…"));
+  const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  const paginas = [], tamanos = [], compases = [], lienzos = [], tintas = [], pents = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    progreso(t("Leyendo la página {n} de {m}…", { n, m: doc.numPages }));
+    const pag = await doc.getPage(n);
+    const vp = pag.getViewport({ scale: ANCHO / pag.getViewport({ scale: 1 }).width });
+    const c = document.createElement("canvas");
+    c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    await pag.render({ canvasContext: g, viewport: vp }).promise;
+    const pg = tintaDe(g.getImageData(0, 0, c.width, c.height));
+    const st = pentagramas(pg);
+    const ms = compasesDePagina(pg, n);
+    tamanos.push([c.width, c.height]);
+    paginas.push(await new Promise((r) => c.toBlob(r, "image/png")));
+    lienzos.push(c); tintas.push(pg); pents.push(st);
+    compases.push(ms);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  if (!compases.flat().length) throw new Error(t("No encontré pentagramas en este PDF."));
+  // números, textos y signos
+  let tempo = null;
+  progreso(t("Leyendo los números y las marcas (la primera vez baja el lector de texto)…"));
+  let lector = null;
+  try { lector = await lectorDeTexto(); } catch (e) { aviso(t("Sin internet no puedo leer los números la primera vez; los compases sí están.")); }
+  for (let i = 0; i < compases.length; i++) {
+    const pg = tintas[i], st = pents[i], ms = compases[i];
+    if (lector) {
+      for (const m of ms) {
+        const parte = partesDeNumero(pg, st, m.box);
+        if (!parte) continue;
+        try { const v = await leerNumero(lector, parte); if (v) { m.times = v; m.auto_times = true; } } catch (e) {}
+      }
+      try { tempo = marcasDeTexto(st, ms, await leerTextos(lector, lienzos[i], st)) || tempo; } catch (e) { console.warn(e); }
+      try { tempo = (await leerPedazos(lector, lienzos[i], st, ms, i === 0)) || tempo; } catch (e) { console.warn(e); }
+    }
+    casillas(pg, st, ms);
+    signosDeRuta(pg, st, ms);
+    for (const m of ms) {
+      const s = pentagramaDe(st, m.box);
+      m.staff = [Math.round(s.top), Math.round(s.bot)];
+      if (!m.times) { const hs = cabezasDeNota(pg, st, m.box); if (hs.length) m.notes = hs; }
+    }
+  }
+  progreso("");
+  return { paginas, tamanos, compases: compases.flat(), tempo };
+}
+
+// ---------------------------------------------------------------- la canción
+async function analizarAudio(archivo) {
+  progreso(t("Escuchando el pulso de la canción…"));
+  await new Promise((r) => setTimeout(r, 30));
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const buf = await ctx.decodeAudioData(await archivo.arrayBuffer());
+    const n = buf.length, mono = new Float32Array(n);
+    for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / buf.numberOfChannels; }
+    const beats = pulsos(mono, buf.sampleRate);
+    const dif = beats.slice(1).map((x, i) => x - beats[i]).sort((a, b) => a - b);
+    const bpm = Math.round(600 / dif[Math.floor(dif.length / 2)]) / 10;
+    return { nombre: archivo.name.replace(/\.[^.]+$/, ""), blob: archivo, beats, bpm, duracion: Math.round(buf.duration * 100) / 100 };
+  } finally { ctx.close(); progreso(""); }
+}
+
+// ---------------------------------------------------------------- estado del lector
+let actual = null;        // la partitura abierta (registro de IndexedDB)
+let urls = [];            // URLs de imágenes y audio (se liberan al cerrar)
+let editando = false, compasSel = null, marcarAMano = false, pos = -1;
+let seq = [], tiempos = [], errorOrden = "";
+let velocidad = leerPref("velocidad", 1), bajarSola = leerPref("bajarSola", true);
+const audio = () => $("audio");
+
+function recalcular() {
+  if (!actual) return;
+  const auto = secuencia(actual.compases);
+  errorOrden = "";
+  seq = auto;
+  if (actual.orden && actual.orden.trim()) { try { seq = leerOrden(actual.orden, actual.compases.length); } catch (e) { errorOrden = e.message; } }
+  const a = actual.audio;
+  if (!a) { tiempos = []; return; }
+  if (actual.bpbAuto !== false) [actual.bpb, actual.bpbMotivo] = pulsosPorCompas(a.bpm, a.beats, a.duracion, seq.length, actual.tempo);
+  const b0 = actual.inicio != null ? pulsoCercano(a.beats, actual.inicio) : 0;
+  tiempos = tiemposDeCompases(seq.length, a.beats, b0, actual.bpb || 4, actual.marcas || []);
+}
+
+const reloj = (s) => { if (!isFinite(s) || s < 0) s = 0; return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`; };
+
+// ---------------------------------------------------------------- lista de partituras
+let busqueda = "";
+async function pintarLista() {
+  if (actual) return;
+  const items = (await todas()).sort((a, b) => (b.added || "").localeCompare(a.added || ""));
+  if (actual) return;                       // mientras tanto se abrió una partitura
+  $("vistaLector").hidden = true;
+  $("vistaLista").hidden = false;
+  const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const vistos = items.filter((i) => norm(`${i.title} ${i.audio?.nombre || ""}`).includes(norm(busqueda.trim())));
+  const ultima = items.find((i) => i.id === leerPref("ultima", null));
+  const seguir = $("seguir");
+  seguir.hidden = !ultima;
+  if (ultima) { seguir.textContent = "▶ " + t("Seguir con «{x}»", { x: ultima.title }); seguir.onclick = () => abrir(ultima.id); }
+  const lista = $("lista");
+  lista.innerHTML = "";
+  if (!vistos.length) lista.append(el("p", { class: "nota", text: busqueda ? t("No tienes una partitura que se llame «{q}».", { q: busqueda }) : t("Todavía no tienes partituras. Sube el PDF aquí.") }));
+  for (const i of vistos) {
+    lista.append(el("li", {},
+      el("button", { type: "button", class: "item", onclick: () => abrir(i.id) },
+        el("span", { text: "📄 " + i.title }), el("small", { text: i.audio ? "🎵 " + i.audio.nombre : t("Sin canción todavía") })),
+      el("button", { type: "button", class: "boton chico", title: t("Renombrar"), "aria-label": t("Renombrar") + " " + i.title, onclick: async () => {
+        const nuevo = prompt(t("Nombre de la partitura"), i.title);
+        if (nuevo && nuevo.trim()) { i.title = nuevo.trim().slice(0, 200); await guardar(i); pintarLista(); }
+      } }, "✎"),
+      el("button", { type: "button", class: "boton chico", title: t("Borrar"), "aria-label": t("Borrar") + " " + i.title, onclick: async () => {
+        if (confirm(t("¿Borrar «{x}»? Se pierden la canción y las marcas que le pusiste.", { x: i.title }))) { await borrar(i.id); pintarLista(); }
+      } }, "✕")));
+  }
+}
+
+async function subirPDF(archivo) {
+  if (!archivo) return;
+  try {
+    const r = await analizarPDF(archivo);
+    const p = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), title: archivo.name.replace(/\.pdf$/i, "").slice(0, 200),
+      added: new Date().toISOString(), pdf: archivo, paginas: r.paginas, tamanos: r.tamanos, compases: r.compases, compasesAuto: structuredClone(r.compases),
+      tempo: r.tempo, orden: null, audio: null, bpb: 4, bpbMotivo: "", bpbAuto: true, inicio: null, marcas: [] };
+    await guardar(p);
+    aviso(t("Leída: {n} compases", { n: p.compases.length }));
+    abrir(p.id);
+  } catch (e) { console.error(e); progreso(""); aviso(t("No pude leer el PDF") + (e && e.message ? ": " + e.message : "")); }
+}
+
+// ---------------------------------------------------------------- lector
+function cerrarLector() {
+  const a = audio(); a.pause(); a.removeAttribute("src"); a.load();
+  urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
+  soltarPantalla();
+  history.replaceState(null, "", location.pathname);
+  actual = null;
+  pintarLista();
+}
+
+async function abrir(id) {
+  const p = await leer(id);
+  if (!p) return pintarLista();
+  urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
+  actual = p;
+  guardarPref("ultima", id);
+  history.replaceState(null, "", "#" + id);
+  editando = false; compasSel = null; pos = -1;
+  $("vistaLista").hidden = true;
+  $("vistaLector").hidden = false;
+  const a = audio();
+  if (p.audio) { const u = URL.createObjectURL(p.audio.blob); urls.push(u); a.src = u; } else a.removeAttribute("src");
+  a.playbackRate = velocidad;
+  pintarPaginas();
+  pintarLector();
+  window.scrollTo(0, 0);
+}
+
+async function ponerCancion(archivo) {
+  if (!archivo || !actual) return;
+  try {
+    actual.audio = await analizarAudio(archivo);
+    actual.inicio = null; actual.marcas = []; actual.bpbAuto = true;
+    await guardar(actual);
+    abrir(actual.id);
+  } catch (e) { console.error(e); progreso(""); aviso(t("No pude leer el audio") + (e && e.message ? ": " + e.message : "")); }
+}
+
+function pintarLector() {
+  if (!actual) return;
+  recalcular();
+  const p = actual, a = p.audio;
+  $("titulo").textContent = p.title;
+  $("datos").textContent = `${t("{n} compases", { n: p.compases.length })} · ${t(p.tamanos.length > 1 ? "{n} páginas" : "{n} página", { n: p.tamanos.length })}`;
+  $("sinCancion").hidden = !!a;
+  $("conCancion").hidden = !a;
+  $("reproductor").hidden = !a;
+  $("ajusteGrabacion").hidden = !a;
+  if (a) {
+    $("cancionNombre").textContent = a.nombre;
+    $("cancionDatos").textContent = ` · ${Math.round(a.bpm)} BPM · ${p.bpb} ${t("pulsos por compás")}`;
+    $("inicioTxt").textContent = reloj(tiempos[0] ?? 0);
+    const sel = $("bpb");
+    sel.innerHTML = "";
+    for (const n of [1, 2, 3, 4, 6, 8]) sel.append(el("option", { value: n, text: String(n) }));
+    sel.value = p.bpb;
+    $("bpbMotivo").textContent = (p.bpbMotivo ? t("Puse {n} porque {r}.", { n: p.bpb, r: p.bpbMotivo }) + " " : "") + t("En 2/2 o salsa rápida a veces el pulso sale a la mitad o al doble: prueba 2 u 8.");
+    $("marcasTxt").textContent = p.marcas?.length ? " " + t("Llevas {n} de {m}.", { n: p.marcas.length, m: seq.length }) : "";
+    $("borrarMarcas").hidden = !p.marcas?.length;
+    $("marcarCompas").hidden = !marcarAMano;
+    $("velocidad").value = String(velocidad);
+    $("bajarSola").checked = bajarSola;
+  }
+  const ord = $("orden");
+  if (document.activeElement !== ord) ord.value = p.orden || "";
+  ord.placeholder = textoDeOrden(secuencia(p.compases));
+  $("usarMarcas").hidden = !(p.orden && p.orden.trim());
+  $("editar").textContent = editando ? t("Listo") : t("✎ Repeticiones y compases");
+  $("editar").classList.toggle("principal", editando);
+  $("ordenAyuda").textContent = errorOrden ? "⚠ " + errorOrden : (p.orden ? t("Orden escrito a mano.") : t("Orden según las marcas de repetición.")) + " " +
+    t("Ej.: 1-8 x2, 9-16, 5 x4, 17-24 = del 1 al 8 dos veces, del 9 al 16, el compás 5 cuatro veces… El segno, la coda (⊕) y «D.S./al segno» se leen solos; en la vuelta del D.S. no se toman las repeticiones. Si tu partitura pide otra cosa, escríbelo aquí.");
+  $("ordenAyuda").classList.toggle("alerta", !!errorOrden);
+  pintarEdicion();
+  pintarCuadros();
+  actualizarReproductor(true);
+}
+
+// ---------------------------------------------------------------- páginas y cuadros
+function pintarPaginas() {
+  const caja = $("paginas");
+  caja.innerHTML = "";
+  actual.paginas.forEach((blob, i) => {
+    const [w, h] = actual.tamanos[i];
+    const u = URL.createObjectURL(blob); urls.push(u);
+    const pag = el("div", { class: "pagina", "data-n": i + 1 });
+    pag.style.aspectRatio = `${w} / ${h}`;
+    pag.append(el("img", { src: u, alt: t("Página {n}", { n: i + 1 }), draggable: "false" }));
+    dibujarConArrastre(pag, i + 1, w, h);
+    caja.append(pag);
+  });
+}
+
+function pintarCuadros() {
+  document.querySelectorAll(".cuadro").forEach((c) => c.remove());
+  $("paginas").classList.toggle("editando", editando);
+  actual.compases.forEach((m, i) => {
+    const pag = document.querySelector(`.pagina[data-n="${m.page}"]`);
+    if (!pag) return;
+    const [w, h] = actual.tamanos[m.page - 1];
+    const c = el("div", { class: "cuadro" + (editando && compasSel === i ? " sel" : ""), "data-i": i,
+      title: editando ? `${t("Compás")} ${i + 1}` : actual.audio ? t("Tocar desde el compás {n}", { n: i + 1 }) : "" });
+    Object.assign(c.style, { left: `${(m.box[0] / w) * 100}%`, top: `${(m.box[1] / h) * 100}%`, width: `${((m.box[2] - m.box[0]) / w) * 100}%`, height: `${((m.box[3] - m.box[1]) / h) * 100}%` });
+    c.append(el("span", { class: "num", text: String(i + 1) }));
+    if ((m.times || 1) > 1) c.append(el("span", { class: "etiqueta", text: "×" + m.times }));
+    if (editando && m.rep_start) c.append(el("span", { class: "etiqueta izq", text: "||:" }));
+    if (editando && m.rep_end) c.append(el("span", { class: "etiqueta der", text: ":||" + ((m.rep_times || 2) > 2 ? " ×" + m.rep_times : "") }));
+    if (editando && m.ending === 1) c.append(el("span", { class: "etiqueta casilla", text: "1." }));
+    const ruta = [m.segno && "Segno", m.coda && "⊕", m.ds && "D.S.", m.dc && "D.C.", m.fine && "Fine"].filter(Boolean).join(" ");
+    if (ruta) c.append(el("span", { class: "etiqueta ruta", text: ruta }));
+    c.append(el("span", { class: "vuelta" }), el("div", { class: "avance" }), el("div", { class: "punto" }));
+    c.addEventListener("pointerdown", (e) => e.stopPropagation());
+    c.addEventListener("click", () => tocarCompas(i));
+    pag.append(c);
+  });
+  marcarActual(true);
+}
+
+function dibujarConArrastre(pag, n, w, h) {
+  let ini = null, caja = null;
+  const pt = (e) => { const r = pag.getBoundingClientRect(); return [Math.max(0, Math.min(w, ((e.clientX - r.left) / r.width) * w)), Math.max(0, Math.min(h, ((e.clientY - r.top) / r.height) * h))]; };
+  pag.addEventListener("pointerdown", (e) => { if (!editando) return; e.preventDefault(); pag.setPointerCapture(e.pointerId); ini = pt(e); });
+  pag.addEventListener("pointermove", (e) => {
+    if (!ini) return;
+    const [x, y] = pt(e), b = [Math.min(ini[0], x), Math.min(ini[1], y), Math.max(ini[0], x), Math.max(ini[1], y)];
+    if (!caja) { caja = el("div", { class: "cuadro dibujo" }); pag.append(caja); }
+    Object.assign(caja.style, { left: `${(b[0] / w) * 100}%`, top: `${(b[1] / h) * 100}%`, width: `${((b[2] - b[0]) / w) * 100}%`, height: `${((b[3] - b[1]) / h) * 100}%` });
+    caja.dataset.box = JSON.stringify(b.map(Math.round));
+  });
+  pag.addEventListener("pointerup", () => {
+    if (caja) {
+      const b = JSON.parse(caja.dataset.box || "[0,0,0,0]");
+      caja.remove();
+      if (b[2] - b[0] > 15 && b[3] - b[1] > 15) agregarCuadro(n, b);
+    }
+    ini = null; caja = null;
+  });
+}
+
+// ---------------------------------------------------------------- edición de compases
+function cambiarCompases(ms, sel = compasSel) { actual.compases = ms; compasSel = sel; guardarLuego(); pintarLector(); }
+function parchear(i, cambios) { cambiarCompases(actual.compases.map((m, k) => (k === i ? { ...m, ...cambios } : m))); }
+function agregarCuadro(page, box) {
+  const ms = actual.compases;
+  let en = ms.findIndex((m) => m.page > page || (m.page === page && (m.box[1] >= box[3] - 4 || (Math.min(m.box[3], box[3]) - Math.max(m.box[1], box[1]) > 0 && m.box[0] > box[0]))));
+  if (en < 0) en = ms.length;
+  cambiarCompases([...ms.slice(0, en), { page, box }, ...ms.slice(en)], en);
+}
+function pintarEdicion() {
+  const caja = $("edicion");
+  caja.hidden = !editando;
+  caja.innerHTML = "";
+  if (!editando) return;
+  const i = compasSel, m = i !== null ? actual.compases[i] : null;
+  if (!m) {
+    caja.append(el("span", { class: "nota", text: t("Toca un compás para marcarle ×N, repetición o casilla. Si falta un compás, arrastra sobre la partitura para dibujarlo.") + " " }),
+      el("button", { type: "button", class: "enlace", text: t("Volver a leer la partitura"), onclick: () => {
+        if (!confirm(t("¿Volver a leer la partitura? Se pierden los cambios que hiciste a los cuadros y al orden."))) return;
+        cambiarCompases(structuredClone(actual.compasesAuto), null); actual.orden = null; guardarLuego(); pintarLector();
+      } }));
+    return;
+  }
+  const casilla = (txt, valor, fn, titulo) => el("label", { class: "marca", title: titulo || "" }, el("input", { type: "checkbox", ...(valor ? { checked: true } : {}), onchange: (e) => fn(e.target.checked) }), " " + txt);
+  const numero = (valor, min, max, fn) => el("input", { type: "number", class: "numero", min, max, value: valor, onchange: (e) => fn(Math.max(min, Math.min(max, +e.target.value || min))) });
+  caja.append(
+    el("b", { text: `${t("Compás")} ${i + 1}` }),
+    el("label", {}, t("Se toca") + " ", numero(m.times || 1, 1, 128, (v) => parchear(i, { times: v })), " " + t("vez/veces seguidas")),
+    casilla(t("||: empieza repetición"), m.rep_start, (v) => parchear(i, { rep_start: v })),
+    casilla(t(":|| termina"), m.rep_end, (v) => parchear(i, { rep_end: v })),
+    m.rep_end ? el("label", {}, t("vueltas") + " ", numero(m.rep_times || 2, 2, 64, (v) => parchear(i, { rep_times: v }))) : null,
+    casilla(t("1.ª casilla"), m.ending === 1, (v) => parchear(i, { ending: v ? 1 : undefined })),
+    el("span", { class: "ruta" },
+      casilla("Segno", m.segno, (v) => parchear(i, { segno: v })),
+      casilla("⊕ Coda", m.coda, (v) => parchear(i, { coda: v })),
+      casilla(t("D.S. aquí"), m.ds, (v) => parchear(i, { ds: v })),
+      casilla(t("D.C. aquí"), m.dc, (v) => parchear(i, { dc: v })),
+      casilla("Fine", m.fine, (v) => parchear(i, { fine: v }))),
+    el("span", { class: "crece" }),
+    el("button", { type: "button", class: "boton", text: t("Partir en dos"), onclick: () => {
+      const mid = Math.round((m.box[0] + m.box[2]) / 2);
+      cambiarCompases([...actual.compases.slice(0, i), { ...m, box: [m.box[0], m.box[1], mid, m.box[3]], rep_end: false, rep_times: undefined },
+        { ...m, box: [mid, m.box[1], m.box[2], m.box[3]], rep_start: false, times: undefined }, ...actual.compases.slice(i + 1)], i);
+    } }),
+    el("button", { type: "button", class: "boton", text: t("Unir con el siguiente"), disabled: i + 1 >= actual.compases.length || actual.compases[i + 1].page !== m.page, onclick: () => {
+      const B = actual.compases[i + 1];
+      const box = [Math.min(m.box[0], B.box[0]), Math.min(m.box[1], B.box[1]), Math.max(m.box[2], B.box[2]), Math.max(m.box[3], B.box[3])];
+      cambiarCompases([...actual.compases.slice(0, i), { ...m, box, rep_end: B.rep_end, rep_times: B.rep_times }, ...actual.compases.slice(i + 2)], i);
+    } }),
+    el("button", { type: "button", class: "boton", text: t("No es un compás"), onclick: () => cambiarCompases(actual.compases.filter((_, k) => k !== i), null) }));
+}
+
+// ---------------------------------------------------------------- reproducción
+function irA(p) {
+  const a = audio();
+  if (!tiempos.length) return;
+  const q = Math.max(0, Math.min(seq.length - 1, p));
+  a.currentTime = Math.max(0, tiempos[q] + 0.01);
+  actualizarReproductor(true);
+}
+function tocarCompas(i) {
+  if (editando) { compasSel = i; pintarEdicion(); pintarCuadros(); return; }
+  if (!actual.audio) return;
+  const despues = seq.findIndex((k, p) => k === i && p > pos);
+  const primera = seq.indexOf(i);
+  irA(despues >= 0 && pos >= 0 && despues - pos < 8 ? despues : primera);
+}
+
+let ultimaFila = null, cuadroActual = -1;
+function marcarActual(forzar) {
+  const cur = pos >= 0 && pos < seq.length ? seq[pos] : -1;
+  if (cur === cuadroActual && !forzar) return;
+  document.querySelectorAll(".cuadro.actual").forEach((c) => c.classList.remove("actual"));
+  document.querySelectorAll(".cuadro.salto").forEach((c) => c.classList.remove("salto"));
+  cuadroActual = cur;
+  if (cur < 0) return;
+  const c = document.querySelector(`.cuadro[data-i="${cur}"]`);
+  if (!c) return;
+  c.classList.add("actual");
+  const sig = pos + 1 < seq.length ? seq[pos + 1] : -1;
+  if (sig >= 0 && sig !== cur && sig !== cur + 1) document.querySelector(`.cuadro[data-i="${sig}"]`)?.classList.add("salto");
+  if (!bajarSola) return;
+  const r = c.getBoundingClientRect();
+  const misma = ultimaFila !== null && Math.abs(r.top - ultimaFila) < 4;
+  ultimaFila = r.top;
+  if (misma && r.top > 60 && r.bottom < innerHeight - 20) return;
+  if (r.top < innerHeight * 0.12 || r.bottom > innerHeight * 0.75)
+    window.scrollTo({ top: window.scrollY + r.top - innerHeight * 0.22, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+function actualizarReproductor(forzar) {
+  if (!actual || !actual.audio || !tiempos.length) return;
+  const a = audio(), ahora = a.currentTime;
+  const p = posicionEn(tiempos, ahora);
+  const nuevo = ahora >= tiempos[tiempos.length - 1] ? tiempos.length - 1 : p.pos;
+  if (nuevo !== pos || forzar) { pos = nuevo; marcarActual(forzar); }
+  const cur = pos >= 0 && pos < seq.length ? seq[pos] : -1;
+  const v = vueltaDe(seq, pos);
+  $("ahora").innerHTML = "";
+  if (pos < 0) $("ahora").textContent = t("Antes del compás 1");
+  else if (pos >= seq.length) $("ahora").textContent = t("Fin de la partitura");
+  else $("ahora").append(t("Compás") + " ", el("b", { text: String(cur + 1) }), v.de > 1 ? ` · ${t("vez")} ` : "", v.de > 1 ? el("b", { text: String(v.n) }) : "", v.de > 1 ? ` ${t("de")} ${v.de}` : "");
+  $("tiempo").textContent = reloj(ahora);
+  const barra = $("posicion");
+  barra.max = actual.audio.duracion;
+  if (document.activeElement !== barra) barra.value = ahora;
+  const c = cur >= 0 ? document.querySelector(`.cuadro[data-i="${cur}"]`) : null;
+  if (c) {
+    c.querySelector(".avance").style.width = `${Math.round(p.frac * 100)}%`;
+    c.querySelector(".vuelta").textContent = v.de > 1 ? `${v.n}/${v.de}` : "";
+    const m = actual.compases[cur], punto = c.querySelector(".punto");
+    if (m.notes && m.notes.length) {
+      const [x0, y0, x1, y1] = m.box, primera = m.notes[0][0], fin = Math.max(primera + 1, x1 - (primera - x0));
+      let k = 0;
+      m.notes.forEach(([x], j) => { if ((x - primera) / (fin - primera) <= p.frac + 0.02) k = j; });
+      const ty = (m.staff ? m.staff[0] : y0) - 14;
+      punto.style.display = "block";
+      punto.style.left = `${((m.notes[k][0] - x0) / (x1 - x0)) * 100}%`;
+      punto.style.top = `${((ty - y0) / (y1 - y0)) * 100}%`;
+    } else punto.style.display = "none";
+  }
+  $("play").classList.toggle("playing", !a.paused);
+  $("play").textContent = a.paused ? "▶" : "⏸";
+  $("play").setAttribute("aria-label", a.paused ? t("Tocar") : t("Pausar"));
+}
+(function bucle() { if (actual && !audio().paused) actualizarReproductor(false); requestAnimationFrame(bucle); })();
+
+function marcarInicio() {
+  const a = actual?.audio;
+  if (!a) return;
+  const ahora = audio().currentTime, k = pulsoCercano(a.beats, ahora);
+  const periodo = a.beats[Math.min(a.beats.length - 1, k + 1)] - a.beats[Math.max(0, k - 1)];
+  // si tocaste justo entre dos pulsos, el detector tomó el contratiempo: se corre todo medio pulso
+  if (periodo > 0 && Math.abs(ahora - a.beats[k]) > periodo / 8) {   // (periodo = 2 pulsos)
+    const medios = a.beats.slice(0, -1).map((b, i) => Math.round(((b + a.beats[i + 1]) / 2) * 1000) / 1000);
+    a.beats = ahora < a.beats[0] ? [a.beats[0] - periodo / 4, ...medios] : [a.beats[0] - periodo / 4, ...medios];
+    guardarLuego();
+  }
+  actual.inicio = a.beats[pulsoCercano(a.beats, ahora)];
+  actual.marcas = [];
+  guardarLuego(); pintarLector();
+}
+function moverInicio(n) {
+  const a = actual?.audio;
+  if (!a) return;
+  const b0 = actual.inicio != null ? pulsoCercano(a.beats, actual.inicio) : 0;
+  actual.inicio = a.beats[Math.max(0, Math.min(a.beats.length - 1, b0 + n))];
+  actual.marcas = [];
+  guardarLuego(); pintarLector();
+}
+function marcarCompas() {
+  if (!actual?.audio) return;
+  const ahora = audio().currentTime;
+  actual.marcas = [...(actual.marcas || []).filter((x) => x < ahora - 0.05), Math.round(ahora * 1000) / 1000];
+  guardarLuego(); pintarLector();
+}
+
+// ---------------------------------------------------------------- eventos
+const dialogo = $("ajustes");
+$("abrirAjustes").addEventListener("click", () => dialogo.showModal());
+$("cerrarAjustes").addEventListener("click", () => dialogo.close());
+dialogo.addEventListener("click", (e) => { if (e.target === dialogo) dialogo.close(); });
+document.querySelectorAll("#idiomas button").forEach((b) => b.addEventListener("click", () => aplicarIdioma(b.dataset.idioma)));
+
+$("buscar").addEventListener("input", (e) => { busqueda = e.target.value; pintarLista(); });
+$("archivoPDF").addEventListener("change", (e) => { subirPDF(e.target.files[0]); e.target.value = ""; });
+$("volver").addEventListener("click", cerrarLector);
+$("archivoAudio").addEventListener("change", (e) => { ponerCancion(e.target.files[0]); e.target.value = ""; });
+$("archivoAudio2").addEventListener("change", (e) => { ponerCancion(e.target.files[0]); e.target.value = ""; });
+
+const a0 = audio();
+a0.addEventListener("play", () => { mantenerPantalla(); actualizarReproductor(true); });
+a0.addEventListener("pause", () => { soltarPantalla(); actualizarReproductor(true); });
+a0.addEventListener("seeked", () => actualizarReproductor(true));
+a0.addEventListener("timeupdate", () => actualizarReproductor(false));
+$("play").addEventListener("click", () => { const a = audio(); a.paused ? a.play() : a.pause(); });
+$("anterior").addEventListener("click", () => irA(pos - 1));
+$("siguiente").addEventListener("click", () => irA(pos + 1));
+$("posicion").addEventListener("input", (e) => { audio().currentTime = +e.target.value; });
+$("velocidad").addEventListener("change", (e) => { velocidad = +e.target.value; guardarPref("velocidad", velocidad); audio().playbackRate = velocidad; });
+$("bajarSola").addEventListener("change", (e) => { bajarSola = e.target.checked; guardarPref("bajarSola", bajarSola); });
+$("marcarAqui").addEventListener("click", marcarInicio);
+document.querySelectorAll("[data-mover]").forEach((b) => b.addEventListener("click", () => moverInicio(+b.dataset.mover * (b.dataset.compas ? actual.bpb || 4 : 1))));
+$("bpb").addEventListener("change", (e) => { actual.bpb = +e.target.value; actual.bpbAuto = false; actual.bpbMotivo = ""; guardarLuego(); pintarLector(); });
+$("aMano").addEventListener("change", (e) => { marcarAMano = e.target.checked; pintarLector(); });
+$("marcarCompas").addEventListener("click", marcarCompas);
+$("borrarMarcas").addEventListener("click", () => { actual.marcas = []; guardarLuego(); pintarLector(); });
+$("orden").addEventListener("change", (e) => { actual.orden = e.target.value.trim() || null; guardarLuego(); pintarLector(); });
+$("orden").addEventListener("keydown", (e) => { if (e.key === "Enter") e.target.blur(); });
+$("usarMarcas").addEventListener("click", () => { actual.orden = null; guardarLuego(); pintarLector(); });
+$("editar").addEventListener("click", () => { editando = !editando; compasSel = null; pintarLector(); });
+
+document.addEventListener("keydown", (e) => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "select" || tag === "textarea" || e.metaKey || e.ctrlKey || e.altKey || dialogo.open) return;
+  if (!actual?.audio) return;
+  const a = audio();
+  if (e.key === " ") { e.preventDefault(); a.paused ? a.play() : a.pause(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); irA(pos + 1); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); irA(pos <= 0 ? 0 : (posicionEn(tiempos, a.currentTime).frac > 0.25 ? pos : pos - 1)); }
+  else if (e.key === "m" || e.key === "M") marcarInicio();
+  else if ((e.key === "t" || e.key === "T") && marcarAMano) marcarCompas();
+});
+
+// ---------------------------------------------------------------- inicio
+(async function iniciar() {
+  let id = leerPref("idioma", null);
+  if (!id) id = navigator.language && navigator.language.slice(0, 2) !== "es" ? "en" : "es";
+  aplicarTema(leerPref("tema", "calido"));
+  aplicarIdioma(id);
+  const h = location.hash.slice(1);
+  if (h && (await leer(h).catch(() => null))) abrir(h); else pintarLista();
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("./sw.js").catch(() => {});
+})();
+
+</script>
+</body>
+</html>
