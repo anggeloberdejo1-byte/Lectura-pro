@@ -441,6 +441,13 @@
   body.lectura-completa #vistaLector > :not(.paginas) { display: none !important; }
   body.lectura-completa .paginas { gap: 4px; padding: env(safe-area-inset-top) env(safe-area-inset-right) 70vh env(safe-area-inset-left); }
   body.lectura-completa .pagina { border-radius: 0; border: 0; }
+  body.lectura-completa .paginas { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+  body.lectura-completa .recorte { flex-shrink: 0; background: #fff; }
+  body.lectura-completa .recorte, body.lectura-completa .pagina { touch-action: pan-x pan-y; }
+  /* nada encima de las notas: el ×N y la vuelta ya salen en el reproductor */
+  body.lectura-completa .cuadro .etiqueta, body.lectura-completa .cuadro .num, body.lectura-completa .cuadro .vuelta { display: none !important; }
+  body.lectura-completa .cuadro.actual { background: color-mix(in srgb, var(--ember) 6%, transparent); outline-width: 2px; }
+  body.lectura-completa .cuadro:hover { background: none; }
   .mini { position: fixed; z-index: 20; left: 0; top: 0; width: 236px; touch-action: none; user-select: none; -webkit-user-select: none;
     background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--surface-2); border-radius: 14px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.25); padding: 6px 10px 8px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
@@ -456,6 +463,10 @@
   .mini-botones { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
   .mini-botones .boton { min-width: 52px; font-size: 16px; }
   .mini-botones .transport.play { width: auto; min-width: 72px; padding: 8px 16px; font-size: 20px; }
+  .mini.chica .mini-zoom { display: none; }
+  .mini-zoom { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--parchment-dim); }
+  .mini-zoom .boton { min-width: 44px; padding: 4px 10px; font-size: 18px; line-height: 1; }
+  .mini-zoom span { min-width: 40px; text-align: center; }
   .mini-barra { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
   .mini-barra .posicion { min-width: 0; margin: 4px 0 !important; }
   .mini-barra .tiempo { font-size: 12px; }
@@ -621,6 +632,11 @@
     <button class="boton" id="miniAnterior" type="button" data-i18n-aria="Compás anterior (←)" aria-label="Compás anterior (←)">⏮</button>
     <button class="transport play" id="miniPlay" type="button" data-i18n-aria="Tocar" aria-label="Tocar">▶</button>
     <button class="boton" id="miniSiguiente" type="button" data-i18n-aria="Compás siguiente (→)" aria-label="Compás siguiente (→)">⏭</button>
+  </div>
+  <div class="mini-zoom">
+    <button class="boton" id="miniMenos" type="button" data-i18n-aria="Achicar la partitura" aria-label="Achicar la partitura">−</button>
+    <span id="miniZoom">100%</span>
+    <button class="boton" id="miniMas" type="button" data-i18n-aria="Agrandar la partitura" aria-label="Agrandar la partitura">+</button>
   </div>
   <div class="mini-barra">
     <input type="range" class="posicion" id="miniPosicion" min="0" max="1" step="0.1" value="0" data-i18n-aria="Posición" aria-label="Posición">
@@ -1493,8 +1509,8 @@ const TEXTOS = {
     "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
     "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
     "Bajar la página sola": "Scroll the page by itself",
-    "Pantalla completa": "Full screen", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
-    "Toca dos veces la barra para achicarlo; arrástralo a donde no estorbe.": "Double-tap the bar to shrink it; drag it out of the way.",
+    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
+    "Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.": "Pinch or use + and − to zoom the score. Double-tap the player's bar to shrink it; drag it out of the way.",
     "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
     "El compás 1 empieza en": "Bar 1 starts at",
     "Pon play y aprieta M justo cuando empieza el compás 1": "Press play and hit M right when bar 1 starts",
@@ -2002,8 +2018,11 @@ function pintarPaginas() {
     pag.style.aspectRatio = `${w} / ${h}`;
     pag.append(el("img", { src: u, alt: t("Página {n}", { n: i + 1 }), draggable: "false" }));
     dibujarConArrastre(pag, i + 1, w, h);
-    caja.append(pag);
+    const rec = el("div", { class: "recorte" });   // en pantalla completa recorta los márgenes blancos
+    rec.append(pag);
+    caja.append(rec);
   });
+  aplicarZoom();
 }
 
 function pintarCuadros() {
@@ -2135,6 +2154,11 @@ function marcarActual(forzar) {
   if (sig >= 0 && sig !== cur && sig !== cur + 1) document.querySelector(`.cuadro[data-i="${sig}"]`)?.classList.add("salto");
   if (!bajarSola) return;
   const r = c.getBoundingClientRect();
+  if (enCompleta) {   // con zoom, la partitura también corre de lado para que el compás quede a la vista
+    const P = $("paginas"), pr = P.getBoundingClientRect();
+    if (r.left < pr.left + 8 || r.right > pr.right - 8)
+      P.scrollTo({ left: P.scrollLeft + r.left - pr.left - Math.min(pr.width * 0.08, Math.max(0, pr.width - r.width) / 2), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
   const misma = ultimaFila !== null && Math.abs(r.top - ultimaFila) < 4;
   ultimaFila = r.top;
   if (misma && r.top > 60 && r.bottom < innerHeight - 20) return;
@@ -2224,7 +2248,59 @@ function marcarCompas() {
 
 // ---------------------------------------------------------------- pantalla completa + reproductor chiquito
 // Solo queda la partitura (para leer en el iPad o el celular) y un reproductor que se arrastra.
-let enCompleta = false;
+let enCompleta = false, zoom = Math.max(1, Math.min(4, +leerPref("zoom", 1) || 1));
+// Pantalla completa: cada página se recorta al ancho de la música (sin los márgenes blancos)
+// y se agranda según el zoom; lo que no cabe se ve corriendo de lado.
+function aplicarZoom() {
+  if (!actual) return;
+  document.querySelectorAll("#paginas .recorte").forEach((rec) => {
+    const pag = rec.firstElementChild, n = +pag.dataset.n, [w, h] = actual.tamanos[n - 1];
+    if (!enCompleta) { rec.removeAttribute("style"); Object.assign(pag.style, { position: "", left: "", top: "", width: "" }); return; }
+    const ms = actual.compases.filter((m) => m.page === n);
+    let x0 = ms.length ? Math.min(...ms.map((m) => m.box[0])) : 0, x1 = ms.length ? Math.max(...ms.map((m) => m.box[2])) : w;
+    const borde = w * 0.015;
+    x0 = Math.max(0, x0 - borde); x1 = Math.min(w, x1 + borde);
+    if (x1 - x0 < w * 0.3) { x0 = 0; x1 = w; }
+    const ancho = x1 - x0;
+    Object.assign(rec.style, { position: "relative", overflow: "hidden", width: `${zoom * 100}%`, aspectRatio: `${ancho} / ${h}` });
+    Object.assign(pag.style, { position: "absolute", top: "0", width: `${(w / ancho) * 100}%`, left: `${(-x0 / ancho) * 100}%` });
+  });
+  const z = $("miniZoom");
+  if (z) z.textContent = Math.round(zoom * 100) + "%";
+}
+function cambiarZoom(nuevo, cx, cy) {
+  nuevo = Math.max(1, Math.min(4, Math.round(nuevo * 100) / 100));
+  if (nuevo === zoom) return;
+  const P = $("paginas"), pr = P.getBoundingClientRect();
+  if (cx == null) { cx = pr.left + pr.width / 2; cy = innerHeight / 2; }
+  // que el punto entre los dedos (o el centro) se quede en su lugar
+  const px = P.scrollLeft + cx - pr.left, py = cy - pr.top, k = nuevo / zoom;
+  zoom = nuevo;
+  aplicarZoom();
+  P.scrollLeft = px * k - (cx - pr.left);
+  window.scrollTo(window.scrollX, window.scrollY + py * k - py);
+  guardarPref("zoom", zoom);
+}
+(function pellizco() {
+  const P = $("paginas");
+  let ini = null, pendiente = null;
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  P.addEventListener("touchstart", (e) => {
+    if (!enCompleta || e.touches.length !== 2) return;
+    ini = { d: dist(e.touches), z: zoom };
+  }, { passive: true });
+  P.addEventListener("touchmove", (e) => {
+    if (!ini || e.touches.length !== 2) return;
+    e.preventDefault();
+    const z = ini.z * dist(e.touches) / ini.d;
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2, cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    if (!pendiente) requestAnimationFrame(() => { const q = pendiente; pendiente = null; if (q) cambiarZoom(q[0], q[1], q[2]); });
+    pendiente = [z, cx, cy];
+  }, { passive: false });
+  P.addEventListener("touchend", (e) => { if (e.touches.length < 2) ini = null; });
+  // en Safari el pellizco agrandaría toda la página (y el reproductor); aquí solo se agranda la partitura
+  for (const ev of ["gesturestart", "gesturechange"]) document.addEventListener(ev, (e) => { if (enCompleta) e.preventDefault(); });
+})();
 function ponerMini(x, y) {
   const m = $("mini"), w = m.offsetWidth || 236, h = m.offsetHeight || 140, borde = 8;
   x = Math.max(borde, Math.min(innerWidth - w - borde, x));
@@ -2250,6 +2326,7 @@ function entrarCompleta(pedirNativa = true) {
   if (pedirNativa && pedir && !(document.fullscreenElement || document.webkitFullscreenElement)) {
     try { const r = pedir.call(d); if (r && r.catch) r.catch(() => {}); } catch (e) {}
   }
+  aplicarZoom();
   requestAnimationFrame(() => { acomodarMini(); actualizarReproductor(true); });
   ultimaFila = null; marcarActual(true);
 }
@@ -2259,6 +2336,7 @@ function salirCompleta(silencio) {
   document.body.classList.remove("lectura-completa");
   $("mini").hidden = true;
   if (!silencio) guardarPref("completa", false);
+  aplicarZoom();
   const fuera = document.exitFullscreen || document.webkitExitFullscreen;
   if ((document.fullscreenElement || document.webkitFullscreenElement) && fuera) { try { const r = fuera.call(document); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
   ultimaFila = null; marcarActual(true);
@@ -2301,8 +2379,10 @@ addEventListener("resize", () => { if (enCompleta) acomodarMini(); });
   asa.addEventListener("pointercancel", soltar);
 })();
 
-$("pantallaCompleta").addEventListener("click", () => { entrarCompleta(true); aviso(t("Toca dos veces la barra para achicarlo; arrástralo a donde no estorbe.")); });
+$("pantallaCompleta").addEventListener("click", () => { entrarCompleta(true); aviso(t("Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.")); });
 $("miniSalir").addEventListener("click", () => salirCompleta(false));
+$("miniMenos").addEventListener("click", () => { cambiarZoom(zoom <= 1.25 ? 1 : zoom / 1.25); ultimaFila = null; marcarActual(true); });
+$("miniMas").addEventListener("click", () => { cambiarZoom(zoom * 1.25); ultimaFila = null; marcarActual(true); });
 $("miniPlay").addEventListener("click", () => { const a = audio(); a.paused ? a.play() : a.pause(); });
 $("miniAnterior").addEventListener("click", () => irA(pos - 1));
 $("miniSiguiente").addEventListener("click", () => irA(pos + 1));
