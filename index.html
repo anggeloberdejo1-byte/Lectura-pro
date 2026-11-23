@@ -434,6 +434,32 @@
   .cuadro .punto { display: none !important; position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 3px rgba(255,255,255,0.9); pointer-events: none; transition: left 0.08s ease; }
   .cuadro.actual .punto[style*="block"] { display: block !important; }
 
+  /* ---- pantalla completa: solo la partitura y el reproductor chiquito ---- */
+  body.lectura-completa { background: #fff; }
+  body.lectura-completa .tool { max-width: none; padding: 0; padding-bottom: env(safe-area-inset-bottom); }
+  body.lectura-completa .tool > :not(#vistaLector),
+  body.lectura-completa #vistaLector > :not(.paginas) { display: none !important; }
+  body.lectura-completa .paginas { gap: 4px; padding: env(safe-area-inset-top) env(safe-area-inset-right) 70vh env(safe-area-inset-left); }
+  body.lectura-completa .pagina { border-radius: 0; border: 0; }
+  .mini { position: fixed; z-index: 20; left: 0; top: 0; width: 236px; touch-action: none; user-select: none; -webkit-user-select: none;
+    background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--surface-2); border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25); padding: 6px 10px 8px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  .mini[hidden] { display: none; }
+  .mini.chica .mini-botones, .mini.chica .mini-barra { display: none; }
+  .mini-arriba { display: flex; align-items: center; gap: 6px; cursor: grab; min-height: 32px; }
+  .mini.arrastrando .mini-arriba { cursor: grabbing; }
+  .mini-asa { color: var(--parchment-dim); font-size: 18px; line-height: 1; }
+  .mini-ahora { flex: 1; font-family: 'IBM Plex Mono', monospace; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-ahora b { color: var(--brass); font-size: 16px; }
+  .mini-x { border: 0; background: none; color: var(--parchment-dim); font-size: 16px; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; }
+  .mini-x:hover { background: var(--surface-2); color: var(--parchment); }
+  .mini-botones { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+  .mini-botones .boton { min-width: 52px; font-size: 16px; }
+  .mini-botones .transport.play { width: auto; min-width: 72px; padding: 8px 16px; font-size: 20px; }
+  .mini-barra { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .mini-barra .posicion { min-width: 0; margin: 4px 0 !important; }
+  .mini-barra .tiempo { font-size: 12px; }
+
   @media (max-width: 520px) {
     .brand-badge { width: 44px; height: 44px; }
     .ahora { min-width: 0; }
@@ -529,6 +555,7 @@
         <option value="0.5">50 %</option><option value="0.6">60 %</option><option value="0.7">70 %</option><option value="0.75">75 %</option>
         <option value="0.8">80 %</option><option value="0.9">90 %</option><option value="1">100 %</option>
       </select>
+      <button class="boton principal" id="pantallaCompleta" type="button">⛶ <span data-i18n="Pantalla completa">Pantalla completa</span></button>
       <label class="marca"><input type="checkbox" id="bajarSola"> <span data-i18n="Bajar la página sola">Bajar la página sola</span></label>
       <audio id="audio" preload="auto"></audio>
     </div>
@@ -582,6 +609,24 @@
     </p>
   </div>
 </main>
+
+<!-- Reproductor chiquito de la pantalla completa: se arrastra a donde estorbe menos -->
+<div class="mini" id="mini" hidden role="group" data-i18n-aria="Reproductor" aria-label="Reproductor">
+  <div class="mini-arriba" id="miniAsa">
+    <span class="mini-asa" aria-hidden="true">⠿</span>
+    <span class="mini-ahora" id="miniAhora"></span>
+    <button class="mini-x" id="miniSalir" type="button" data-i18n-aria="Salir de pantalla completa" aria-label="Salir de pantalla completa">✕</button>
+  </div>
+  <div class="mini-botones">
+    <button class="boton" id="miniAnterior" type="button" data-i18n-aria="Compás anterior (←)" aria-label="Compás anterior (←)">⏮</button>
+    <button class="transport play" id="miniPlay" type="button" data-i18n-aria="Tocar" aria-label="Tocar">▶</button>
+    <button class="boton" id="miniSiguiente" type="button" data-i18n-aria="Compás siguiente (→)" aria-label="Compás siguiente (→)">⏭</button>
+  </div>
+  <div class="mini-barra">
+    <input type="range" class="posicion" id="miniPosicion" min="0" max="1" step="0.1" value="0" data-i18n-aria="Posición" aria-label="Posición">
+    <small class="tiempo" id="miniTiempo">0:00</small>
+  </div>
+</div>
 
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
@@ -1448,6 +1493,8 @@ const TEXTOS = {
     "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
     "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
     "Bajar la página sola": "Scroll the page by itself",
+    "Pantalla completa": "Full screen", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
+    "Toca dos veces la barra para achicarlo; arrástralo a donde no estorbe.": "Double-tap the bar to shrink it; drag it out of the way.",
     "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
     "El compás 1 empieza en": "Bar 1 starts at",
     "Pon play y aprieta M justo cuando empieza el compás 1": "Press play and hit M right when bar 1 starts",
@@ -1867,6 +1914,7 @@ async function subirPDF(archivo) {
 
 // ---------------------------------------------------------------- lector
 function cerrarLector() {
+  salirCompleta(true);
   const a = audio(); a.pause(); a.removeAttribute("src"); a.load();
   urls.forEach((u) => URL.revokeObjectURL(u)); urls = [];
   soltarPantalla();
@@ -1891,6 +1939,7 @@ async function abrir(id) {
   pintarPaginas();
   pintarLector();
   window.scrollTo(0, 0);
+  if (p.audio && leerPref("completa", false)) entrarCompleta(false);
 }
 
 async function ponerCancion(archivo) {
@@ -2124,9 +2173,22 @@ function actualizarReproductor(forzar) {
       punto.style.top = `${((ty - y0) / (y1 - y0)) * 100}%`;
     } else punto.style.display = "none";
   }
-  $("play").classList.toggle("playing", !a.paused);
-  $("play").textContent = a.paused ? "▶" : "⏸";
-  $("play").setAttribute("aria-label", a.paused ? t("Tocar") : t("Pausar"));
+  for (const id of ["play", "miniPlay"]) {
+    $(id).classList.toggle("playing", !a.paused);
+    $(id).textContent = a.paused ? "▶" : "⏸";
+    $(id).setAttribute("aria-label", a.paused ? t("Tocar") : t("Pausar"));
+  }
+  if (!$("mini").hidden) {
+    const m = $("miniAhora");
+    m.innerHTML = "";
+    if (pos < 0) m.textContent = t("Antes del compás 1");
+    else if (pos >= seq.length) m.textContent = t("Fin de la partitura");
+    else m.append(t("Compás") + " ", el("b", { text: String(cur + 1) }), v.de > 1 ? ` · ${v.n}/${v.de}` : "");
+    $("miniTiempo").textContent = reloj(ahora).replace(/\.\d$/, "");
+    const b2 = $("miniPosicion");
+    b2.max = actual.audio.duracion;
+    if (document.activeElement !== b2) b2.value = ahora;
+  }
 }
 (function bucle() { if (actual && !audio().paused) actualizarReproductor(false); requestAnimationFrame(bucle); })();
 
@@ -2159,6 +2221,92 @@ function marcarCompas() {
   actual.marcas = [...(actual.marcas || []).filter((x) => x < ahora - 0.05), Math.round(ahora * 1000) / 1000];
   guardarLuego(); pintarLector();
 }
+
+// ---------------------------------------------------------------- pantalla completa + reproductor chiquito
+// Solo queda la partitura (para leer en el iPad o el celular) y un reproductor que se arrastra.
+let enCompleta = false;
+function ponerMini(x, y) {
+  const m = $("mini"), w = m.offsetWidth || 236, h = m.offsetHeight || 140, borde = 8;
+  x = Math.max(borde, Math.min(innerWidth - w - borde, x));
+  y = Math.max(borde, Math.min(innerHeight - h - borde, y));
+  m.style.left = x + "px"; m.style.top = y + "px";
+  return [x, y];
+}
+function acomodarMini() {
+  const m = $("mini"), g = leerPref("miniLugar", null);
+  // por defecto abajo a la derecha, donde casi nunca está el compás que suena
+  if (g) ponerMini(g[0] * innerWidth, g[1] * innerHeight);
+  else ponerMini(innerWidth - m.offsetWidth - 14, innerHeight - m.offsetHeight - 14 - (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sab")) || 0));
+}
+function entrarCompleta(pedirNativa = true) {
+  if (!actual?.audio) return;
+  enCompleta = true;
+  document.body.classList.add("lectura-completa");
+  $("mini").hidden = false;
+  $("mini").classList.toggle("chica", !!leerPref("miniChica", false));
+  guardarPref("completa", true);
+  // en el iPad y la compu también se esconde la barra del navegador (en el iPhone no se puede: queda igual de grande)
+  const d = document.documentElement, pedir = d.requestFullscreen || d.webkitRequestFullscreen;
+  if (pedirNativa && pedir && !(document.fullscreenElement || document.webkitFullscreenElement)) {
+    try { const r = pedir.call(d); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  }
+  requestAnimationFrame(() => { acomodarMini(); actualizarReproductor(true); });
+  ultimaFila = null; marcarActual(true);
+}
+function salirCompleta(silencio) {
+  if (!enCompleta) return;
+  enCompleta = false;
+  document.body.classList.remove("lectura-completa");
+  $("mini").hidden = true;
+  if (!silencio) guardarPref("completa", false);
+  const fuera = document.exitFullscreen || document.webkitExitFullscreen;
+  if ((document.fullscreenElement || document.webkitFullscreenElement) && fuera) { try { const r = fuera.call(document); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+  ultimaFila = null; marcarActual(true);
+}
+for (const ev of ["fullscreenchange", "webkitfullscreenchange"]) document.addEventListener(ev, () => {
+  // si salió de la pantalla completa del navegador (Esc o gesto), se queda en el modo partitura; el ✕ es el que lo cierra
+  if (enCompleta) requestAnimationFrame(acomodarMini);
+});
+addEventListener("resize", () => { if (enCompleta) acomodarMini(); });
+
+(function arrastrarMini() {
+  const m = $("mini"), asa = $("miniAsa");
+  let ini = null, ultimoToque = 0;
+  asa.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const r = m.getBoundingClientRect();
+    ini = { dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY, movio: false };
+    asa.setPointerCapture(e.pointerId);
+    m.classList.add("arrastrando");
+  });
+  asa.addEventListener("pointermove", (e) => {
+    if (!ini) return;
+    if (Math.abs(e.clientX - ini.x) + Math.abs(e.clientY - ini.y) > 4) ini.movio = true;
+    if (ini.movio) ponerMini(e.clientX - ini.dx, e.clientY - ini.dy);
+  });
+  const soltar = (e) => {
+    if (!ini) return;
+    m.classList.remove("arrastrando");
+    if (ini.movio) {
+      const r = m.getBoundingClientRect();
+      guardarPref("miniLugar", [r.left / innerWidth, r.top / innerHeight]);
+    } else {
+      // dos toques en la barra: se achica a solo el número de compás (o vuelve a crecer)
+      if (Date.now() - ultimoToque < 350) { m.classList.toggle("chica"); guardarPref("miniChica", m.classList.contains("chica")); acomodarMini(); ultimoToque = 0; }
+      else ultimoToque = Date.now();
+    }
+    ini = null;
+  };
+  asa.addEventListener("pointerup", soltar);
+  asa.addEventListener("pointercancel", soltar);
+})();
+
+$("pantallaCompleta").addEventListener("click", () => { entrarCompleta(true); aviso(t("Toca dos veces la barra para achicarlo; arrástralo a donde no estorbe.")); });
+$("miniSalir").addEventListener("click", () => salirCompleta(false));
+$("miniPlay").addEventListener("click", () => { const a = audio(); a.paused ? a.play() : a.pause(); });
+$("miniAnterior").addEventListener("click", () => irA(pos - 1));
+$("miniSiguiente").addEventListener("click", () => irA(pos + 1));
+$("miniPosicion").addEventListener("input", (e) => { audio().currentTime = +e.target.value; });
 
 // ---------------------------------------------------------------- eventos
 const dialogo = $("ajustes");
@@ -2204,6 +2352,8 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowRight") { e.preventDefault(); irA(pos + 1); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); irA(pos <= 0 ? 0 : (posicionEn(tiempos, a.currentTime).frac > 0.25 ? pos : pos - 1)); }
   else if (e.key === "m" || e.key === "M") marcarInicio();
+  else if (e.key === "f" || e.key === "F") enCompleta ? salirCompleta(false) : entrarCompleta(true);
+  else if (e.key === "Escape" && enCompleta) salirCompleta(false);
   else if ((e.key === "t" || e.key === "T") && marcarAMano) marcarCompas();
 });
 
