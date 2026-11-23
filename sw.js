@@ -8,7 +8,7 @@
  * versión de CACHE (v1 -> v2 ...) para que los usuarios reciban la versión
  * nueva en vez de la vieja cacheada.
  */
-const CACHE = "lectura-pro-web-v6";
+const CACHE = "lectura-pro-web-v7";
 const ARCHIVOS = [
   "./",
   "./index.html",

@@ -474,7 +474,8 @@
   .mini-repetir { display: flex; gap: 8px; margin-top: 6px; }
   .mini-repetir #miniRepetir { flex: 1; font-size: 14px; padding: 8px 6px; }
   .mini-repetir #miniRepetir.activo { background: var(--brass); border-color: var(--brass); color: var(--ink); }
-  .mini-repetir #miniVelocidad { min-width: 62px; font: 600 13px 'IBM Plex Mono', monospace; padding: 8px 6px; }
+  .mini-repetir #miniCuantos { flex: 1; font: 600 13px 'IBM Plex Mono', monospace; padding: 8px 6px; }
+  .mini-zoom #miniVelocidad { min-width: 56px; font: 600 12px 'IBM Plex Mono', monospace; }
   .cuadro.bucle { outline: 2px dashed var(--brass) !important; outline-offset: 2px; }
   .mini-zoom { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--parchment-dim); }
   .mini-zoom .boton { min-width: 44px; padding: 4px 10px; font-size: 18px; line-height: 1; }
@@ -646,10 +647,11 @@
     <button class="boton" id="miniSiguiente" type="button" data-i18n-aria="Compás siguiente (→)" aria-label="Compás siguiente (→)">⏭</button>
   </div>
   <div class="mini-repetir">
-    <button class="boton" id="miniRepetir" type="button" aria-pressed="false" data-i18n-title="Repetir este compás (R)" title="Repetir este compás (R)">🔁 <span data-i18n="Repetir compás">Repetir compás</span></button>
-    <button class="boton" id="miniVelocidad" type="button" data-i18n-aria="Velocidad" aria-label="Velocidad">100%</button>
+    <button class="boton" id="miniRepetir" type="button" aria-pressed="false" data-i18n-title="Repetir este compás (R)" title="Repetir este compás (R)">🔁 <span data-i18n="Repetir">Repetir</span></button>
+    <button class="boton" id="miniCuantos" type="button" data-i18n-title="Cuántos compases se repiten" title="Cuántos compases se repiten">1 compás</button>
   </div>
   <div class="mini-zoom">
+    <button class="boton" id="miniVelocidad" type="button" data-i18n-aria="Velocidad" aria-label="Velocidad">100%</button>
     <button class="boton" id="miniMenos" type="button" data-i18n-aria="Achicar la partitura" aria-label="Achicar la partitura">−</button>
     <span id="miniZoom">100%</span>
     <button class="boton" id="miniMas" type="button" data-i18n-aria="Agrandar la partitura" aria-label="Agrandar la partitura">+</button>
@@ -1525,7 +1527,7 @@ const TEXTOS = {
     "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
     "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
     "Bajar la página sola": "Scroll the page by itself",
-    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Repetir compás": "Loop bar", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
+    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Repetir compás": "Loop bar", "Repetir": "Loop", "1 compás": "1 bar", "Cuántos compases se repiten": "How many bars to loop", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
     "Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.": "Pinch or use + and − to zoom the score. Double-tap the player's bar to shrink it; drag it out of the way.",
     "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
     "El compás 1 empieza en": "Bar 1 starts at",
@@ -2065,7 +2067,8 @@ function pintarCuadros() {
     c.addEventListener("click", () => tocarCompas(i));
     pag.append(c);
   });
-  if (bucle) { bucle = rangoDe(bucle.p); document.querySelector(`.cuadro[data-i="${seq[bucle.p]}"]`)?.classList.add("bucle"); }
+  if (bucle) bucle = rangoDe(bucle.p);
+  marcarBucle();
   marcarActual(true);
 }
 
@@ -2144,18 +2147,27 @@ function pintarEdicion() {
 
 // ---------------------------------------------------------------- reproducción
 // «Repetir compás»: suena solo ese pedacito de la canción, una y otra vez (para escucharlo y luego tocarlo)
-let bucle = null;   // { p, a, b } = vuelta de la secuencia que se repite y sus tiempos
+let bucle = null;   // { p, a, b } = desde qué vuelta de la secuencia se repite y sus tiempos
+let cuantos = [1, 2, 4, 8].includes(leerPref("cuantos", 1)) ? leerPref("cuantos", 1) : 1;   // compases que se repiten
 function rangoDe(p) {
   if (!tiempos.length) return null;
-  const q = Math.max(0, Math.min(seq.length - 1, p));
-  return { p: q, a: tiempos[q], b: tiempos[q + 1] ?? tiempos[q] + 2 };
+  const q = Math.max(0, Math.min(seq.length - 1, p)), fin = Math.min(seq.length, q + cuantos);
+  return { p: q, a: tiempos[q], b: tiempos[fin] ?? tiempos[fin - 1] + 2 };
+}
+function marcarBucle() {
+  document.querySelectorAll(".cuadro.bucle").forEach((c) => c.classList.remove("bucle"));
+  if (!bucle) return;
+  for (let k = bucle.p; k < Math.min(seq.length, bucle.p + cuantos); k++)
+    document.querySelector(`.cuadro[data-i="${seq[k]}"]`)?.classList.add("bucle");
+}
+function pintarCuantos() {
+  $("miniCuantos").textContent = cuantos === 1 ? t("1 compás") : t("{n} compases", { n: cuantos });
 }
 function ponerBucle(p) {
   bucle = p == null ? null : rangoDe(p);
   $("miniRepetir").classList.toggle("activo", !!bucle);
   $("miniRepetir").setAttribute("aria-pressed", bucle ? "true" : "false");
-  document.querySelectorAll(".cuadro.bucle").forEach((c) => c.classList.remove("bucle"));
-  if (bucle) document.querySelector(`.cuadro[data-i="${seq[bucle.p]}"]`)?.classList.add("bucle");
+  marcarBucle();
 }
 function irA(p) {
   const a = audio();
@@ -2365,7 +2377,7 @@ function entrarCompleta(pedirNativa = true) {
   if (pedirNativa && pedir && !(document.fullscreenElement || document.webkitFullscreenElement)) {
     try { const r = pedir.call(d); if (r && r.catch) r.catch(() => {}); } catch (e) {}
   }
-  aplicarZoom();
+  aplicarZoom(); pintarCuantos();
   requestAnimationFrame(() => { acomodarMini(); actualizarReproductor(true); });
   ultimaFila = null; marcarActual(true);
 }
@@ -2432,6 +2444,12 @@ $("miniRepetir").addEventListener("click", () => {
   ponerBucle(pos < 0 ? 0 : pos);
   a.currentTime = bucle.a + 0.005;
   if (a.paused) a.play();
+});
+$("miniCuantos").addEventListener("click", () => {
+  const pasos = [1, 2, 4, 8];
+  cuantos = pasos[(pasos.indexOf(cuantos) + 1) % pasos.length];
+  guardarPref("cuantos", cuantos); pintarCuantos();
+  if (bucle) ponerBucle(bucle.p);
 });
 $("miniVelocidad").addEventListener("click", () => {
   const pasos = [1, 0.9, 0.75, 0.6, 0.5];
