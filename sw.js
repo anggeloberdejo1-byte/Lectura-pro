@@ -8,7 +8,7 @@
  * versión de CACHE (v1 -> v2 ...) para que los usuarios reciban la versión
  * nueva en vez de la vieja cacheada.
  */
-const CACHE = "lectura-pro-web-v7";
+const CACHE = "lectura-pro-web-v8";
 const ARCHIVOS = [
   "./",
   "./index.html",
@@ -43,8 +43,11 @@ self.addEventListener("fetch", (evento) => {
   const req = evento.request;
   if (req.method !== "GET") return;
 
+  // las páginas y archivos de la app se piden siempre al servidor (sin la copia de 10 minutos
+  // del navegador), así la versión nueva llega apenas se publica
+  const propio = new URL(req.url).origin === self.location.origin;
   evento.respondWith(
-    fetch(req)
+    fetch(req, propio ? { cache: "no-cache" } : undefined)
       .then((respuesta) => {
         const copia = respuesta.clone();
         caches.open(CACHE).then((cache) => cache.put(req, copia));

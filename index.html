@@ -2524,7 +2524,21 @@ document.addEventListener("keydown", (e) => {
   aplicarIdioma(id);
   const h = location.hash.slice(1);
   if (h && (await leer(h).catch(() => null))) abrir(h); else pintarLista();
-  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("./sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    // si había una versión vieja instalada, apenas llega la nueva se recarga sola (una vez)
+    const habia = !!navigator.serviceWorker.controller;
+    let recargada = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!habia || recargada) return;
+      recargada = true;
+      if (!audio() || audio().paused) location.reload();
+    });
+    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((r) => r.update()).catch(() => {});
+    // al volver a la app (iPhone/iPad la deja dormida en segundo plano) se revisa si hay versión nueva
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
+    });
+  }
 })();
 
 </script>
