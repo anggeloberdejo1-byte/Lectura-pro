@@ -814,7 +814,10 @@ function pentagramas(pg) {
     const gaps = [1, 2, 3, 4].map((k) => g[k].y - g[k - 1].y);
     const xs = g.map((l) => l.s);
     const mn = Math.min(...gaps), mx = Math.max(...gaps);
-    if (mn >= 4 && mx <= 1.35 * mn && mx < 60 && Math.max(...xs) - Math.min(...xs) < 0.3 * W) {
+    const largos = g.map((l) => l.e - l.s);
+    // las 5 líneas miden parecido: el borde de un recuadro de texto justo encima no es la 1.ª línea
+    if (mn >= 4 && mx <= 1.35 * mn && mx < 60 && Math.max(...xs) - Math.min(...xs) < 0.3 * W
+        && Math.min(...largos) >= 0.6 * Math.max(...largos)) {
       out.push({ top: g[0].y, bot: g[4].y, x0: Math.min(...xs), x1: Math.max(...g.map((l) => l.e)), sp: gaps.reduce((a, b) => a + b) / 4 });
       i += 5;
     } else i++;
@@ -1106,7 +1109,8 @@ function signosDeRuta(pg, st, compases) {
       const k = despues ? Math.min(i + 1, compases.length - 1) : i;
       const f = forma(sub, lab, o);
       if (esCoda(f, sp)) compases[k].coda = true;
-      else if (esSegno(f, sp) && ya + o.y0 < s.top && s.top < ya + o.y1) compases[k].segno = true;
+      // cruza la 1.ª línea o queda justo encima (en algunas ediciones flota sobre el pentagrama)
+      else if (esSegno(f, sp) && ya + o.y0 < s.top && ya + o.y1 > s.top - 1.5 * sp) compases[k].segno = true;
     }
   });
 }
@@ -1183,6 +1187,9 @@ function compasDeTexto(st, compases, b) {
   return mejor ? mejor[1] : null;
 }
 
+// «AL SEGNO» aunque el lector lo junte o cambie la A ("ALSEGNO", "1L SEGNO"); «REP SEGNO 3X» no es un salto
+const SALTO_DS = /\bD\.?\s*S\.?(\s|$|AL)|[A1IL]L\s*SEGNO/;
+
 /** Lo que se lee con texto de la página: D.S., D.C., Fine, "6X's", casillas "1." y el ♩ = tempo. */
 function marcasDeTexto(st, compases, palabras) {
   let tempo = null;
@@ -1190,7 +1197,7 @@ function marcasDeTexto(st, compases, palabras) {
     const tx = r.text.trim(), up = tx.toUpperCase(), b = r.box;
     const mm = tx.match(/=\s*(\d{2,3})\b/);
     if (mm && st.length && b[3] < st[0].top && +mm[1] >= 30 && +mm[1] <= 320) tempo = +mm[1];
-    if (/\bD\.?\s*S\.?(\s|$|AL)|AL\s+SEGNO|DAL\s+SEGNO/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].ds = true; continue; }
+    if (SALTO_DS.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].ds = true; continue; }
     if (/\bD\.?\s*C\.?(\s|$|AL)|DA\s+CAPO/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].dc = true; continue; }
     if (/^\s*FINE\.?\s*$/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].fine = true; continue; }
     const mx = tx.match(/^\s*(\d{1,2})\s*[xX×]\s*['´`’]?\s*[sS5]?\s*[|.]?\s*$/);
@@ -1224,12 +1231,12 @@ function marcasDeTexto(st, compases, palabras) {
 // ---------------------------------------------------------------- orden de los compases
 function secuencia(ms) {
   const n = ms.length, seq = [];
-  const segno = ms.findIndex((m) => m.segno);
+  const segnos = ms.map((m, k) => (m.segno ? k : -1)).filter((k) => k >= 0);
   const codas = ms.map((m, k) => (m.coda ? k : -1)).filter((k) => k >= 0);
-  let alCoda = codas.length >= 2 ? codas[0] : -1;
-  const coda = codas.length >= 2 ? codas[codas.length - 1] : -1;
+  let alCoda = -1, coda = -1;
+  const usados = new Set();
   const poner = (k) => { for (let i = 0; i < Math.max(1, ms[k].times || 1); i++) seq.push(k); };
-  let i = 0, sec = 0, repite = true, salto = false, vuelta = false;
+  let i = 0, sec = 0, repite = true, vuelta = false;
   while (i < n && seq.length <= 20000) {
     const m = ms[i];
     if (vuelta && alCoda >= 0 && i === alCoda) { i = coda; alCoda = -1; repite = true; vuelta = false; sec = coda; continue; }
@@ -1242,7 +1249,17 @@ function secuencia(ms) {
       sec = i + 1;
     }
     if (vuelta && m.fine) break;
-    if (!salto && ((m.ds && segno >= 0) || m.dc)) { salto = true; vuelta = true; repite = false; i = m.ds && segno >= 0 ? segno : 0; continue; }
+    // cada D.S. vuelve al segno de antes más cercano (puede haber varios «al segno y bola»); en esa
+    // vuelta, la ⊕ que hay entre el segno y el D.S. salta a la siguiente ⊕ después del D.S.
+    const antes = segnos.filter((g) => g <= i);
+    if (!usados.has(i) && !vuelta && ((m.ds && antes.length) || m.dc)) {
+      usados.add(i);
+      const desde = m.ds && antes.length ? antes[antes.length - 1] : 0;
+      const dentro = codas.filter((c) => c >= desde && c <= i), despues = codas.filter((c) => c > i);
+      [alCoda, coda] = dentro.length && despues.length ? [dentro[0], despues[0]] : [-1, -1];
+      vuelta = true; repite = false; i = desde;
+      continue;
+    }
     i++;
   }
   return seq;
@@ -1812,6 +1829,41 @@ async function leerTextos(lector, lienzo, st) {
   return [...(data.lines || []).map((l) => ({ text: l.text, box: caja(l.bbox) })), ...(data.words || []).map((w) => ({ text: w.text, box: caja(w.bbox) }))];
 }
 
+/** «AL SEGNO Y BOLA» escrito DENTRO de un compás vacío (en el pentagrama): el texto de la página
+ * se lee con el pentagrama borrado, así que aquí se lee aparte el último compás de cada línea.
+ * Ese compás no se toca: el salto va al final del compás de antes. */
+async function letreros(lector, lienzo, pg, st, ms) {
+  const ultimos = new Map();
+  ms.forEach((m, k) => { const s = pentagramaDe(st, m.box); if (!ultimos.has(s) || m.box[0] > ms[ultimos.get(s)].box[0]) ultimos.set(s, k); });
+  const quitar = [];
+  for (const [s, k] of ultimos) {
+    if (k === 0) continue;
+    const [x0, , x1] = ms[k].box, y0 = Math.max(0, Math.floor(s.top - s.sp)), y1 = Math.min(pg.h, Math.ceil(s.bot + s.sp));
+    const c = document.createElement("canvas");
+    c.width = x1 - x0; c.height = y1 - y0;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(lienzo, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    // se borran las líneas del pentagrama (no las letras que las cruzan)
+    const img = g.getImageData(0, 0, c.width, c.height);
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+      const Y = y + y0, X = x + x0, en = (yy) => yy >= 0 && yy < pg.h && pg.d[yy * pg.w + X];
+      if (en(Y) && !en(Y - 3) && !en(Y + 3)) { const o = (y * c.width + x) * 4; img.data[o] = img.data[o + 1] = img.data[o + 2] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+    await lector.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "7" });
+    const { data } = await lector.recognize(c);
+    const tx = (data.text || "").toUpperCase();
+    if (!SALTO_DS.test(tx.replace(/\s+/g, " "))) continue;
+    const bb = (data.words || []).filter((w) => /\w/.test(w.text)).map((w) => w.bbox);
+    const ancho = bb.length ? Math.max(...bb.map((b) => b.x1)) - Math.min(...bb.map((b) => b.x0)) : 0;
+    if (ancho < 0.55 * c.width) continue;      // si no llena el compás, es música con algo escrito: no se toca
+    ms[k - 1].ds = true;
+    for (const marca of ["rep_end", "coda", "fine"]) if (ms[k][marca]) ms[k - 1][marca] = true;
+    quitar.push(k);
+  }
+  for (const k of quitar.sort((a, b) => b - a)) ms.splice(k, 1);
+}
+
 async function analizarPDF(blob) {
   const lib = await pdfjs();
   progreso(t("Abriendo el PDF…"));
@@ -1851,6 +1903,7 @@ async function analizarPDF(blob) {
       }
       try { tempo = marcasDeTexto(st, ms, await leerTextos(lector, lienzos[i], st)) || tempo; } catch (e) { console.warn(e); }
       try { tempo = (await leerPedazos(lector, lienzos[i], st, ms, i === 0)) || tempo; } catch (e) { console.warn(e); }
+      try { await letreros(lector, lienzos[i], pg, st, ms); } catch (e) { console.warn(e); }
     }
     casillas(pg, st, ms);
     signosDeRuta(pg, st, ms);
