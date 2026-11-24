@@ -1544,7 +1544,7 @@ const TEXTOS = {
     "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
     "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
     "Bajar la página sola": "Scroll the page by itself",
-    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Repetir compás": "Loop bar", "Repetir": "Loop", "1 compás": "1 bar", "Cuántos compases se repiten": "How many bars to loop", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
+    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Ese compás cae después del final de la grabación. Revisa los ×N y el orden, o «Ajustar a la grabación».": "That bar falls after the end of the recording. Check the ×N and the order, or «Adjust to the recording».", "Repetir compás": "Loop bar", "Repetir": "Loop", "1 compás": "1 bar", "Cuántos compases se repiten": "How many bars to loop", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
     "Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.": "Pinch or use + and − to zoom the score. Double-tap the player's bar to shrink it; drag it out of the way.",
     "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
     "El compás 1 empieza en": "Bar 1 starts at",
@@ -2226,6 +2226,10 @@ function irA(p) {
   const a = audio();
   if (!tiempos.length) return;
   const q = Math.max(0, Math.min(seq.length - 1, p));
+  if (isFinite(a.duration) && tiempos[q] >= a.duration - 0.05) {
+    aviso(t("Ese compás cae después del final de la grabación. Revisa los ×N y el orden, o «Ajustar a la grabación»."));
+    return;
+  }
   if (bucle) ponerBucle(q);
   a.currentTime = Math.max(0, tiempos[q] + 0.01);
   actualizarReproductor(true);
@@ -2234,7 +2238,10 @@ function tocarCompas(i) {
   if (editando) { compasSel = i; pintarEdicion(); pintarCuadros(); return; }
   if (!actual.audio) return;
   const despues = seq.findIndex((k, p) => k === i && p > pos);
-  const primera = seq.indexOf(i);
+  let primera = seq.indexOf(i);
+  // un compás que no suena en el orden (casilla saltada, letrero…): el siguiente que sí suena
+  for (let k = i + 1; primera < 0 && k < actual.compases.length; k++) primera = seq.indexOf(k);
+  if (primera < 0) return;
   irA(despues >= 0 && pos >= 0 && despues - pos < 8 ? despues : primera);
 }
 
