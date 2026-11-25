@@ -470,7 +470,13 @@
   .mini-botones { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
   .mini-botones .boton { min-width: 52px; font-size: 16px; }
   .mini-botones .transport.play { width: auto; min-width: 72px; padding: 8px 16px; font-size: 20px; }
-  .mini.chica .mini-zoom, .mini.chica .mini-repetir { display: none; }
+  .mini.chica .mini-zoom, .mini.chica .mini-repetir, .mini.chica .mini-vueltas { display: none !important; }
+  .vueltas { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .vueltas[hidden], .mini-vueltas[hidden] { display: none; }
+  .vueltas b, .mini-vueltas b { font-family: 'IBM Plex Mono', monospace; color: var(--brass); }
+  .mini-vueltas { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; }
+  .mini-vueltas > span { flex: 1; }
+  .mini-vueltas .boton { min-width: 40px; padding: 4px 8px; font-size: 18px; line-height: 1; }
   .mini-repetir { display: flex; gap: 8px; margin-top: 6px; }
   .mini-repetir #miniRepetir { flex: 1; font-size: 14px; padding: 8px 6px; }
   .mini-repetir #miniRepetir.activo { background: var(--brass); border-color: var(--brass); color: var(--ink); }
@@ -573,6 +579,9 @@
       <button class="boton" id="anterior" type="button" data-i18n-aria="Compás anterior (←)" aria-label="Compás anterior (←)">⏮</button>
       <button class="boton" id="siguiente" type="button" data-i18n-aria="Compás siguiente (→)" aria-label="Compás siguiente (→)">⏭</button>
       <span class="ahora" id="ahora"></span>
+      <span class="vueltas" id="vueltas" hidden data-i18n-title="Vueltas de esta repetición: si la grabación repite más (o menos), corrígelo aquí" title="Vueltas de esta repetición: si la grabación repite más (o menos), corrígelo aquí">🔁 <span data-i18n="Vueltas">Vueltas</span> <b>×2</b>
+        <button class="boton chico" id="vueltasMenos" type="button" data-i18n-aria="Una vuelta menos" aria-label="Una vuelta menos">−</button>
+        <button class="boton chico" id="vueltasMas" type="button" data-i18n-aria="Una vuelta más" aria-label="Una vuelta más">+</button></span>
       <input type="range" class="posicion" id="posicion" min="0" max="1" step="0.1" value="0" data-i18n-aria="Posición" aria-label="Posición">
       <small class="tiempo" id="tiempo">0:00.0</small>
       <select id="velocidad" data-i18n-aria="Velocidad" aria-label="Velocidad">
@@ -649,6 +658,11 @@
   <div class="mini-repetir">
     <button class="boton" id="miniRepetir" type="button" aria-pressed="false" data-i18n-title="Repetir este compás (R)" title="Repetir este compás (R)">🔁 <span data-i18n="Repetir">Repetir</span></button>
     <button class="boton" id="miniCuantos" type="button" data-i18n-title="Cuántos compases se repiten" title="Cuántos compases se repiten">1 compás</button>
+  </div>
+  <div class="mini-vueltas" id="miniVueltas" hidden>
+    <span>🔁 <span data-i18n="Vueltas">Vueltas</span> <b>×2</b></span>
+    <button class="boton" id="miniVueltasMenos" type="button" data-i18n-aria="Una vuelta menos" aria-label="Una vuelta menos">−</button>
+    <button class="boton" id="miniVueltasMas" type="button" data-i18n-aria="Una vuelta más" aria-label="Una vuelta más">+</button>
   </div>
   <div class="mini-zoom">
     <button class="boton" id="miniVelocidad" type="button" data-i18n-aria="Velocidad" aria-label="Velocidad">100%</button>
@@ -1189,6 +1203,9 @@ function compasDeTexto(st, compases, b) {
 
 // «AL SEGNO» aunque el lector lo junte o cambie la A ("ALSEGNO", "1L SEGNO"); «REP SEGNO 3X» no es un salto
 const SALTO_DS = /\bD\.?\s*S\.?(\s|$|AL)|[A1IL]L\s*SEGNO/;
+const SALTO_DC = /\bD\.?\s*C\.?(\s|$|AL)|DA\s*CAPO/;
+// repetición abierta (se repite lo que quiera la banda): las vueltas se cuentan con la grabación
+const ABIERTA = /\bOPEN\b|AD\s*LIB|\bVAMP|ON\s*CUE/;
 
 /** Lo que se lee con texto de la página: D.S., D.C., Fine, "6X's", casillas "1." y el ♩ = tempo. */
 function marcasDeTexto(st, compases, palabras) {
@@ -1199,6 +1216,15 @@ function marcasDeTexto(st, compases, palabras) {
     if (mm && st.length && b[3] < st[0].top && +mm[1] >= 30 && +mm[1] <= 320) tempo = +mm[1];
     if (SALTO_DS.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].ds = true; continue; }
     if (/\bD\.?\s*C\.?(\s|$|AL)|DA\s+CAPO/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].dc = true; continue; }
+    if (ABIERTA.test(up)) {
+      // «OPEN» / «AD LIB» arriba del :|| (o justo después): esa repetición es abierta
+      const cxt = (b[0] + b[2]) / 2;
+      for (const m of compases) {
+        const s = pentagramaDe(st, m.box);
+        if (m.rep_end && s.top - 6 * s.sp <= b[3] && b[3] <= s.bot + s.sp && m.box[0] + 0.5 * (m.box[2] - m.box[0]) <= cxt && cxt <= m.box[2] + 6 * s.sp) m.abierta = true;
+      }
+      continue;
+    }
     if (/^\s*FINE\.?\s*$/.test(up)) { const k = compasDeTexto(st, compases, b); if (k !== null) compases[k].fine = true; continue; }
     const mx = tx.match(/^\s*(\d{1,2})\s*[xX×]\s*['´`’]?\s*[sS5]?\s*[|.]?\s*$/);
     if (mx && +mx[1] >= 2 && +mx[1] <= 64) {
@@ -1229,24 +1255,25 @@ function marcasDeTexto(st, compases, palabras) {
 }
 
 // ---------------------------------------------------------------- orden de los compases
-function secuencia(ms) {
+function secuencia(ms, secciones = null) {
   const n = ms.length, seq = [];
   const segnos = ms.map((m, k) => (m.segno ? k : -1)).filter((k) => k >= 0);
   const codas = ms.map((m, k) => (m.coda ? k : -1)).filter((k) => k >= 0);
   let alCoda = -1, coda = -1;
   const usados = new Set();
   const poner = (k) => { for (let i = 0; i < Math.max(1, ms[k].times || 1); i++) seq.push(k); };
-  let i = 0, sec = 0, repite = true, vuelta = false;
+  let i = 0, sec = 0, repite = true, vuelta = false, secPos = 0;
   while (i < n && seq.length <= 20000) {
     const m = ms[i];
-    if (vuelta && alCoda >= 0 && i === alCoda) { i = coda; alCoda = -1; repite = true; vuelta = false; sec = coda; continue; }
+    if (vuelta && alCoda >= 0 && i === alCoda) { i = coda; alCoda = -1; repite = true; vuelta = false; sec = coda; secPos = seq.length; continue; }
     if (!repite && m.ending === 1) { i++; continue; }
-    if (repite && m.rep_start) sec = i;
+    if (repite && m.rep_start) { sec = i; secPos = seq.length; }
     poner(i);
     if (repite && m.rep_end) {
-      const veces = Math.max(1, m.rep_times || 2);
-      for (let p = 2; p <= veces; p++) for (let k = sec; k <= i; k++) { if (p === veces && ms[k].ending === 1) continue; poner(k); }
-      sec = i + 1;
+      const veces = Math.max(1, m.rep_times || 2), pasadas = [secPos], largo = seq.length - secPos;
+      for (let p = 2; p <= veces; p++) { pasadas.push(seq.length); for (let k = sec; k <= i; k++) { if (p === veces && ms[k].ending === 1) continue; poner(k); } }
+      if (secciones) { let cas = false; for (let k = sec; k <= i; k++) if (ms[k].ending === 1) cas = true; secciones.push({ fin: i, desde: sec, pasadas, largo, casillas: cas }); }
+      sec = i + 1; secPos = seq.length;
     }
     if (vuelta && m.fine) break;
     // cada D.S. vuelve al segno de antes más cercano (puede haber varios «al segno y bola»); en esa
@@ -1337,6 +1364,9 @@ function ataques(mono, sr) {
   for (let b = 0; b <= nb; b++) lim.push(Math.max(1, Math.round((40 * Math.pow(5000 / 40, b / nb)) / (sr2 / N))));
   const prev = new Float32Array(nb), env = new Float32Array(F);
   const re = new Float32Array(N), im = new Float32Array(N);
+  // armonía (12 notas) de cada cuadro, para comparar vueltas de una repetición abierta
+  const croma0 = new Float32Array(F * 12), pc = new Int8Array(N / 2).fill(-1);
+  for (let k = 1; k < N / 2; k++) { const fq = (k * sr2) / N; if (fq >= 100 && fq <= 2200) pc[k] = ((Math.round(12 * Math.log2(fq / 261.63)) % 12) + 12) % 12; }
   for (let f = 0; f < F; f++) {
     const ini = Math.round(f * hop);
     for (let i = 0; i < N; i++) { re[i] = x[ini + i] * ventana[i]; im[i] = 0; }
@@ -1350,6 +1380,7 @@ function ataques(mono, sr) {
       prev[b] = v;
     }
     env[f] = flujo;
+    for (let k = 1; k < N / 2; k++) if (pc[k] >= 0) croma0[f * 12 + pc[k]] += Math.sqrt(re[k] * re[k] + im[k] * im[k]);
   }
   // la ventana mira hacia adelante: el ataque cae en su centro
   const corrimiento = Math.round((N / 2 / sr2) * fps);
@@ -1364,14 +1395,16 @@ function ataques(mono, sr) {
     const g = f + corrimiento;
     if (g < F) m[g] = v;
   }
-  return { m, fps };
+  const croma = new Float32Array(F * 12);
+  for (let f = 0; f + corrimiento < F; f++) croma.set(croma0.subarray(f * 12, f * 12 + 12), (f + corrimiento) * 12);
+  return { m, fps, croma };
 }
 
 /** Pulsos de la grabación: tempo por autocorrelación y luego el mejor camino de pulsos
  *  (programación dinámica de Ellis, la misma idea que librosa). Al final se elige el lado
  *  del pulso (a tiempo o a contratiempo) que coincide con los ataques más fuertes. */
-function pulsos(mono, sr) {
-  const { m, fps } = ataques(mono, sr);
+function pulsos(mono, sr, at = ataques(mono, sr)) {
+  const { m, fps } = at;
   const F = m.length;
   if (F < fps * 6) throw new Error(t("El audio es demasiado corto"));
   const lagMin = Math.floor(fps * 60 / 210), lagMax = Math.ceil(fps * 60 / 55);
@@ -1431,6 +1464,80 @@ function pulsos(mono, sr) {
   const medios = cuadros.slice(0, -1).map((f, i) => Math.round((f + cuadros[i + 1]) / 2));
   if (fuerza(medios) > fuerza(cuadros) * 1.15) cuadros = medios;
   return pulsoParejo(cuadros.map((f) => f / fps));
+}
+
+// ---------------------------------------------------------------- repeticiones abiertas
+/** Rasgos de cada pulso (para comparar vueltas): armonía (12, normalizada) + ataques en sus 4 cuartos. */
+function rasgosDePulsos(at, beats) {
+  const { m, fps, croma } = at, F = m.length, out = [];
+  const fr = (t) => Math.min(F - 1, Math.max(0, Math.floor(t * fps)));
+  for (let i = 0; i + 1 < beats.length; i++) {
+    const a = fr(beats[i]), b = Math.max(a + 1, fr(beats[i + 1]));
+    const v = new Array(16).fill(0);
+    for (let f = a; f < b; f++) for (let c = 0; c < 12; c++) v[c] += croma[f * 12 + c];
+    const n = Math.hypot(...v.slice(0, 12)) || 1;
+    for (let c = 0; c < 12; c++) v[c] = Math.round((v[c] / n) * 1000) / 1000;
+    for (let q = 0; q < 4; q++) {
+      const qa = Math.floor(a + ((b - a) * q) / 4), qb = Math.max(qa + 1, Math.floor(a + ((b - a) * (q + 1)) / 4));
+      let s = 0; for (let f = qa; f < qb; f++) s += m[f] || 0;
+      v[12 + q] = Math.round((s / (qb - qa)) * 1000) / 1000;
+    }
+    out.push(v);
+  }
+  return out;
+}
+
+const PISO_VUELTA = 0.88;
+function bloqueDe(R, b0, bpb, desde, largo) {
+  const a = b0 + desde * bpb, b = b0 + (desde + largo) * bpb;
+  if (a < 0 || b > R.length) return null;
+  const x = [];
+  let on = 0;
+  for (let i = a; i < b; i++) for (let q = 12; q < 16; q++) on += R[i][q] * R[i][q];
+  on = Math.sqrt(on) || 1;
+  const k = Math.sqrt(b - a);
+  for (let i = a; i < b; i++) { for (let c = 0; c < 12; c++) x.push(R[i][c]); for (let q = 12; q < 16; q++) x.push((R[i][q] / on) * k); }
+  return x;
+}
+function parecido(a, b) { let s = 0, na = 0, nb = 0; for (let i = 0; i < a.length; i++) { s += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; } return s / (Math.sqrt(na * nb) || 1); }
+
+/** Repeticiones abiertas («OPEN»): cuántas vueltas suenan en la grabación (igual que la Mac).
+ *  {índice del :|| → vueltas}, solo donde cambian respecto al papel. */
+function contarVueltas(ms, R, b0, bpb) {
+  const copia = ms.map((m) => ({ ...m })), cambios = {}, vistas = new Set();
+  for (let it = 0; it < 400; it++) {
+    const secs = [];
+    secuencia(copia, secs);
+    const s = secs.find((x) => !vistas.has(x.fin));
+    if (!s) break;
+    const { fin, largo, pasadas } = s;
+    if (!copia[fin].abierta || s.casillas || largo < 1 || pasadas.length < 2 || copia[fin].rep_times_mano) { vistas.add(fin); continue; }
+    const bloques = pasadas.map((p) => bloqueDe(R, b0, bpb, p, largo));
+    if (bloques.some((b) => !b)) { vistas.add(fin); continue; }
+    const entre = bloques.slice(1).reduce((t, b) => t + parecido(bloques[0], b), 0) / (bloques.length - 1);
+    if (entre < PISO_VUELTA) { vistas.add(fin); continue; }
+    const ref = bloques[0].map((_, i) => bloques.reduce((t, b) => t + b[i], 0) / bloques.length);
+    const sigue = bloqueDe(R, b0, bpb, pasadas[pasadas.length - 1] + largo, largo);
+    const veces = pasadas.length;
+    if (sigue && parecido(ref, sigue) >= Math.max(PISO_VUELTA, entre - 0.05) && veces - (ms[fin].rep_times || 2) < 32) {
+      const prueba = copia.map((m) => ({ ...m }));
+      prueba[fin].rep_times = veces + 1;
+      // la partitura entera tiene que seguir cabiendo en la grabación
+      if (b0 + secuencia(prueba).length * bpb <= R.length + 1) {
+        copia[fin].rep_times = veces + 1; cambios[fin] = veces + 1;
+        continue;
+      }
+    }
+    vistas.add(fin);
+  }
+  return cambios;
+}
+
+/** La repetición (||: … :||) donde está el compás i: índice de su :|| o -1. */
+function repeticionDe(ms, i) {
+  if (i < 0 || i >= ms.length) return -1;
+  for (let k = i; k < ms.length; k++) { if (ms[k].rep_end) return k; if (k > i && ms[k].rep_start) return -1; }
+  return -1;
 }
 
 /** Pulso parejo: si un tramo sale contado al doble o hay un pulso suelto, se sigue el principal. */
@@ -1544,7 +1651,10 @@ const TEXTOS = {
     "Antes del compás 1": "Before bar 1", "Fin de la partitura": "End of the score",
     "Compás": "Bar", "vez": "pass", "de": "of", "Posición": "Position", "Velocidad": "Speed", "normal": "normal",
     "Bajar la página sola": "Scroll the page by itself",
-    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Ese compás cae después del final de la grabación. Revisa los ×N y el orden, o «Ajustar a la grabación».": "That bar falls after the end of the recording. Check the ×N and the order, or «Adjust to the recording».", "Repetir compás": "Loop bar", "Repetir": "Loop", "1 compás": "1 bar", "Cuántos compases se repiten": "How many bars to loop", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
+    "Pantalla completa": "Full screen", "Achicar la partitura": "Zoom out", "Vueltas": "Repeats", "Una vuelta menos": "One repeat less", "Una vuelta más": "One more repeat",
+    "Vueltas de esta repetición: si la grabación repite más (o menos), corrígelo aquí": "Repeats of this section: if the recording repeats more (or less), fix it here",
+    "(contadas con la canción)": "(counted from the song)", "Repetición abierta («OPEN»): se repite lo que dure en la grabación": "Open repeat («OPEN»): repeats as long as the recording does",
+    "Abierta (cuenta las vueltas con la canción)": "Open (count the repeats from the song)", "Ese compás cae después del final de la grabación. Revisa los ×N y el orden, o «Ajustar a la grabación».": "That bar falls after the end of the recording. Check the ×N and the order, or «Adjust to the recording».", "Repetir compás": "Loop bar", "Repetir": "Loop", "1 compás": "1 bar", "Cuántos compases se repiten": "How many bars to loop", "Repetir este compás (R)": "Loop this bar (R)", "Velocidad": "Speed", "Agrandar la partitura": "Zoom in", "Salir de pantalla completa": "Exit full screen", "Reproductor": "Player",
     "Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.": "Pinch or use + and − to zoom the score. Double-tap the player's bar to shrink it; drag it out of the way.",
     "Ajustar a la grabación (dónde empieza, compás, marcar a mano)": "Match the recording (where it starts, meter, mark by hand)",
     "El compás 1 empieza en": "Bar 1 starts at",
@@ -1829,9 +1939,10 @@ async function leerTextos(lector, lienzo, st) {
   return [...(data.lines || []).map((l) => ({ text: l.text, box: caja(l.bbox) })), ...(data.words || []).map((w) => ({ text: w.text, box: caja(w.bbox) }))];
 }
 
-/** «AL SEGNO Y BOLA» escrito DENTRO de un compás vacío (en el pentagrama): el texto de la página
- * se lee con el pentagrama borrado, así que aquí se lee aparte el último compás de cada línea.
- * Ese compás no se toca: el salto va al final del compás de antes. */
+/** Letreros escritos DENTRO de un compás vacío («AL SEGNO Y BOLA», «TO SONEO - CORO / ON CUE
+ * CODA»): el texto de la página se lee con el pentagrama borrado, así que aquí se lee aparte el
+ * último compás de cada línea. Ese compás no se toca; lo que dice va al de antes (D.S., o que su
+ * repetición es abierta). */
 async function letreros(lector, lienzo, pg, st, ms) {
   const ultimos = new Map();
   ms.forEach((m, k) => { const s = pentagramaDe(st, m.box); if (!ultimos.has(s) || m.box[0] > ms[ultimos.get(s)].box[0]) ultimos.set(s, k); });
@@ -1852,13 +1963,22 @@ async function letreros(lector, lienzo, pg, st, ms) {
     g.putImageData(img, 0, 0);
     await lector.setParameters({ tessedit_char_whitelist: "", tessedit_pageseg_mode: "7" });
     const { data } = await lector.recognize(c);
-    const tx = (data.text || "").toUpperCase();
-    if (!SALTO_DS.test(tx.replace(/\s+/g, " "))) continue;
-    const bb = (data.words || []).filter((w) => /\w/.test(w.text)).map((w) => w.bbox);
+    // solo lo escrito DENTRO de las líneas (la letra de la canción y los acordes van afuera)
+    const arriba = s.top - y0, abajo = s.bot - y0;
+    const dentro = (data.words || []).filter((w) => { const cy = (w.bbox.y0 + w.bbox.y1) / 2; return cy >= arriba - 0.3 * s.sp && cy <= abajo + 0.3 * s.sp; });
+    const tx = dentro.map((w) => w.text).join(" ").toUpperCase();
+    // "//2//" o notas leídas como letras no son un letrero
+    const letras = (tx.match(/[A-ZÁÉÍÓÚÑ]/g) || []).length;
+    if (letras < 5 || letras < 0.6 * tx.replace(/ /g, "").length) continue;
+    if (!/SEGNO|CODA|BOLA|FINE|CAPO|OPEN|\bCUE\b|VAMP|AD\s*LIB|\bD\.?\s*[SC]\./.test(tx)) continue;   // solo órdenes de ruta
+    const bb = dentro.filter((w) => /[A-Za-z]{2}/.test(w.text)).map((w) => w.bbox);
     const ancho = bb.length ? Math.max(...bb.map((b) => b.x1)) - Math.min(...bb.map((b) => b.x0)) : 0;
-    if (ancho < 0.55 * c.width) continue;      // si no llena el compás, es música con algo escrito: no se toca
-    ms[k - 1].ds = true;
-    for (const marca of ["rep_end", "coda", "fine"]) if (ms[k][marca]) ms[k - 1][marca] = true;
+    if (ancho < 0.55 * c.width) continue;      // si no llena el compás, es música con algo escrito: se toca
+    const antes = ms[k - 1];
+    if (SALTO_DS.test(tx)) antes.ds = true;
+    else if (SALTO_DC.test(tx)) antes.dc = true;
+    if (ABIERTA.test(tx) && antes.rep_end) antes.abierta = true;
+    for (const marca of ["rep_end", "coda", "fine", "abierta"]) if (ms[k][marca]) antes[marca] = true;
     quitar.push(k);
   }
   for (const k of quitar.sort((a, b) => b - a)) ms.splice(k, 1);
@@ -1926,10 +2046,12 @@ async function analizarAudio(archivo) {
     const buf = await ctx.decodeAudioData(await archivo.arrayBuffer());
     const n = buf.length, mono = new Float32Array(n);
     for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / buf.numberOfChannels; }
-    const beats = pulsos(mono, buf.sampleRate);
+    const at = ataques(mono, buf.sampleRate);
+    const beats = pulsos(mono, buf.sampleRate, at);
+    const rasgos = rasgosDePulsos(at, beats);
     const dif = beats.slice(1).map((x, i) => x - beats[i]).sort((a, b) => a - b);
     const bpm = Math.round(600 / dif[Math.floor(dif.length / 2)]) / 10;
-    return { nombre: archivo.name.replace(/\.[^.]+$/, ""), blob: archivo, beats, bpm, duracion: Math.round(buf.duration * 100) / 100 };
+    return { nombre: archivo.name.replace(/\.[^.]+$/, ""), blob: archivo, beats, bpm, duracion: Math.round(buf.duration * 100) / 100, rasgos, rasgosDe: beats.join() };
   } finally { ctx.close(); progreso(""); }
 }
 
@@ -1938,8 +2060,26 @@ let actual = null;        // la partitura abierta (registro de IndexedDB)
 let urls = [];            // URLs de imágenes y audio (se liberan al cerrar)
 let editando = false, compasSel = null, marcarAMano = false, pos = -1;
 let seq = [], tiempos = [], errorOrden = "";
+let vista = [];           // los compases con las vueltas de las repeticiones abiertas contadas con la canción
+let calculandoRasgos = false;
 let velocidad = leerPref("velocidad", 1), bajarSola = leerPref("bajarSola", true);
 const audio = () => $("audio");
+
+/** Canciones puestas antes (o con el pulso corrido con M): se calculan los rasgos de nuevo. */
+async function asegurarRasgos() {
+  const p = actual;
+  if (calculandoRasgos || !p || !p.audio) return;
+  calculandoRasgos = true;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    const buf = await ctx.decodeAudioData(await p.audio.blob.arrayBuffer());
+    const n = buf.length, mono = new Float32Array(n);
+    for (let c = 0; c < buf.numberOfChannels; c++) { const d = buf.getChannelData(c); for (let i = 0; i < n; i++) mono[i] += d[i] / buf.numberOfChannels; }
+    p.audio.rasgos = rasgosDePulsos(ataques(mono, buf.sampleRate), p.audio.beats);
+    p.audio.rasgosDe = p.audio.beats.join();
+    if (actual === p) { guardarLuego(); pintarLector(); }
+  } catch (e) { console.warn(e); } finally { ctx.close(); calculandoRasgos = false; }
+}
 
 function recalcular() {
   if (!actual) return;
@@ -1951,6 +2091,18 @@ function recalcular() {
   if (!a) { tiempos = []; return; }
   if (actual.bpbAuto !== false) [actual.bpb, actual.bpbMotivo] = pulsosPorCompas(a.bpm, a.beats, a.duracion, seq.length, actual.tempo);
   const b0 = actual.inicio != null ? pulsoCercano(a.beats, actual.inicio) : 0;
+  // repeticiones abiertas («OPEN»): se cuentan las vueltas con la canción
+  vista = actual.compases;
+  if (!actual.orden && !(actual.marcas || []).length && actual.compases.some((m) => m.abierta)) {
+    if (!a.rasgos || a.rasgosDe !== a.beats.join()) asegurarRasgos();
+    else {
+      const clave = JSON.stringify([2, b0, actual.bpb || 4, actual.compases.map((m) => [m.rep_times, m.abierta, m.rep_times_mano, m.times, m.rep_end])]);
+      if (!actual.vueltas || actual.vueltas.clave !== clave) { actual.vueltas = { clave, cambios: contarVueltas(actual.compases, a.rasgos, b0, actual.bpb || 4) }; guardarLuego(); }
+      const c = actual.vueltas.cambios;
+      vista = actual.compases.map((m, i) => (c[i] ? { ...m, rep_times: c[i], rep_times_audio: true } : m));
+      seq = secuencia(vista);
+    }
+  }
   tiempos = tiemposDeCompases(seq.length, a.beats, b0, actual.bpb || 4, actual.marcas || []);
 }
 
@@ -2176,7 +2328,9 @@ function pintarEdicion() {
     el("label", {}, t("Se toca") + " ", numero(m.times || 1, 1, 128, (v) => parchear(i, { times: v })), " " + t("vez/veces seguidas")),
     casilla(t("||: empieza repetición"), m.rep_start, (v) => parchear(i, { rep_start: v })),
     casilla(t(":|| termina"), m.rep_end, (v) => parchear(i, { rep_end: v })),
-    m.rep_end ? el("label", {}, t("vueltas") + " ", numero(m.rep_times || 2, 2, 64, (v) => parchear(i, { rep_times: v }))) : null,
+    m.rep_end ? el("label", {}, t("vueltas") + " ", numero((vista[i] || m).rep_times || 2, 1, 64, (v) => parchear(i, { rep_times: v, rep_times_mano: true })),
+      (vista[i] || m).rep_times_audio ? el("small", { class: "nota", text: " " + t("(contadas con la canción)") }) : "") : null,
+    m.rep_end ? casilla(t("Abierta (cuenta las vueltas con la canción)"), m.abierta, (v) => parchear(i, { abierta: v, rep_times_mano: undefined }), t("Repetición abierta («OPEN»): se repite lo que dure en la grabación")) : null,
     casilla(t("1.ª casilla"), m.ending === 1, (v) => parchear(i, { ending: v ? 1 : undefined })),
     el("span", { class: "ruta" },
       casilla("Segno", m.segno, (v) => parchear(i, { segno: v })),
@@ -2196,6 +2350,28 @@ function pintarEdicion() {
       cambiarCompases([...actual.compases.slice(0, i), { ...m, box, rep_end: B.rep_end, rep_times: B.rep_times }, ...actual.compases.slice(i + 2)], i);
     } }),
     el("button", { type: "button", class: "boton", text: t("No es un compás"), onclick: () => cambiarCompases(actual.compases.filter((_, k) => k !== i), null) }));
+}
+
+// ---------------------------------------------------------------- vueltas de la repetición que suena
+let repSonando = -1;
+function pintarVueltas(cur) {
+  const k = actual && actual.audio ? repeticionDe(actual.compases, cur) : -1;
+  const n = k >= 0 ? (vista[k] || actual.compases[k]).rep_times || 2 : 0;
+  const clave = k + ":" + n;
+  if (clave === repSonando) return;
+  repSonando = clave;
+  for (const id of ["vueltas", "miniVueltas"]) {
+    const caja = $(id);
+    caja.hidden = k < 0;
+    if (k >= 0) caja.querySelector("b").textContent = "×" + n;
+  }
+}
+function cambiarVueltas(d) {
+  const k = repeticionDe(actual.compases, pos >= 0 && pos < seq.length ? seq[pos] : -1);
+  if (k < 0) return;
+  const n = (vista[k] || actual.compases[k]).rep_times || 2;
+  repSonando = -1;
+  parchear(k, { rep_times: Math.max(1, Math.min(64, n + d)), rep_times_mano: true, rep_times_audio: undefined });
 }
 
 // ---------------------------------------------------------------- reproducción
@@ -2287,6 +2463,7 @@ function actualizarReproductor(forzar) {
   else if (pos >= seq.length) $("ahora").textContent = t("Fin de la partitura");
   else $("ahora").append(t("Compás") + " ", el("b", { text: String(cur + 1) }), v.de > 1 ? ` · ${t("vez")} ` : "", v.de > 1 ? el("b", { text: String(v.n) }) : "", v.de > 1 ? ` ${t("de")} ${v.de}` : "");
   $("tiempo").textContent = reloj(ahora);
+  pintarVueltas(cur);
   const barra = $("posicion");
   barra.max = actual.audio.duracion;
   if (document.activeElement !== barra) barra.value = ahora;
@@ -2498,6 +2675,7 @@ addEventListener("wheel", (e) => {
 
 $("pantallaCompleta").addEventListener("click", () => { entrarCompleta(true); aviso(t("Agranda la partitura con dos dedos o con + y −. Toca dos veces la barra del reproductor para achicarlo; arrástralo a donde no estorbe.")); });
 $("miniSalir").addEventListener("click", () => salirCompleta(false));
+for (const [id, d] of [["vueltasMenos", -1], ["vueltasMas", 1], ["miniVueltasMenos", -1], ["miniVueltasMas", 1]]) $(id).addEventListener("click", () => cambiarVueltas(d));
 $("miniRepetir").addEventListener("click", () => {
   if (bucle) return ponerBucle(null);
   const a = audio();
